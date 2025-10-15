@@ -1,81 +1,79 @@
-# Digital Airlines
+# Digital Airlines(University Project)
 
-Η Digital Airlines είναι μια διαδικτυακή εφαρμογή κατασκευασμένη με τη χρήση Flask και MongoDB. Επιτρέπει στους χρήστες να εγγράφονται, να αναζητούν πτήσεις, να κάνουν κρατήσεις και να εκτελούν άλλες σχετικές ενέργειες που θα αναφερθούν εκτενώς παρακάτω.
+Digital Airlines is an online application built using Flask and MongoDB. It allows users to register, search for flights, make bookings, and perform other related actions, which are described in detail below.
 
-## Πώς να τρέξετε την εφαρμογή 
+## Running the Application
 
-### Διαχειριστής
+### Administrator
 
-Ένας χρήστης διαχειριστής έχει τις ακόλουθες δυνατότητες:
+An administrator has the following capabilities:
 
-- Δημιουργία μιας πτήσης: Ο διαχειριστής μπορεί να δημιουργήσει μια νέα πτήση παρέχοντας τα απαραίτητα στοιχεία, όπως το αεροδρόμιο αναχώρησης, το αεροδρόμιο προορισμού, την ημερομηνία πτήσης, τη διαθεσιμότητα των εισιτηρίων και το κόστος του εισιτηρίου.
+- **Create a flight:** The administrator can create a new flight by providing required details such as departure airport, destination airport, flight date, ticket availability, and ticket price.
 
-- Ενημέρωση των τιμών των εισιτηρίων: Ο διαχειριστής μπορεί να ενημερώσει τις τιμές των εισιτηρίων για μια συγκεκριμένη πτήση.
+- **Update ticket prices:** The administrator can update the ticket prices for a specific flight.
 
-- Διαγραφή μιας πτήσης: Ο διαχειριστής μπορεί να διαγράψει μια πτήση από το σύστημα. Ωστόσο, μια πτήση δεν μπορεί να διαγραφεί εάν υπάρχουν υπάρχουσες κρατήσεις που σχετίζονται με αυτήν.
+- **Delete a flight:** The administrator can delete a flight from the system. However, a flight cannot be deleted if there are existing bookings associated with it.
 
-- Αναζήτηση μιας πτήσης: Ο διαχειριστής μπορεί να αναζητήσει πτήσεις με βάση κριτήρια όπως το αεροδρόμιο αναχώρησης, το αεροδρόμιο προορισμού και την ημερομηνία πτήσης.
+- **Search for a flight:** The administrator can search for flights based on criteria such as departure airport, destination airport, and flight date.
 
-- Προβολή λεπτομερειών πτήσης: Ο διαχειριστής μπορεί να δει τις λεπτομέρειες μιας συγκεκριμένης πτήσης, συμπεριλαμβανομένων των διαθέσιμων εισιτηρίων και του κόστους τους.
+- **View flight details:** The administrator can view the details of a specific flight, including available tickets and their costs.
 
-- Αποσύνδεση: Ο διαχειριστής μπορεί να αποσυνδεθεί από το σύστημα.
+- **Logout:** The administrator can log out of the system.
 
-### Απλός χρήστης
+### Regular User
 
-Ένας απλός χρήστης έχει τις ακόλουθες δυνατότητες:
+A regular user has the following capabilities:
 
-- Αναζήτηση για μια πτήση: Ο χρήστης μπορεί να αναζητήσει πτήσεις με βάση κριτήρια όπως το αεροδρόμιο αναχώρησης, το αεροδρόμιο προορισμού και την ημερομηνία πτήσης.
+- **Search for a flight:** The user can search for flights based on criteria such as departure airport, destination airport, and flight date.
 
-- Προβολή λεπτομερειών της πτήσης: Ο χρήστης μπορεί να προβάλει τις λεπτομέρειες μιας συγκεκριμένης πτήσης, συμπεριλαμβανομένων των διαθέσιμων εισιτηρίων και του κόστους τους.
+- **View flight details:** The user can view the details of a specific flight, including available tickets and their costs.
 
-- Πραγματοποίηση κράτησης: Ο χρήστης μπορεί να κάνει κράτηση για μια συγκεκριμένη πτήση παρέχοντας τις απαραίτητες πληροφορίες για τον επιβάτη.
+- **Make a booking:** The user can make a booking for a specific flight by providing the required passenger information.
 
-- Εμφάνιση κρατήσεων: Ο χρήστης μπορεί να δει τις υπάρχουσες κρατήσεις του.
+- **View bookings:** The user can see their existing bookings.
 
-- Εμφάνιση λεπτομερειών κράτησης: Ο χρήστης μπορεί να δει τις λεπτομέρειες μιας συγκεκριμένης κράτησης.
+- **View booking details:** The user can view details of a specific booking.
 
-- Ακύρωση κράτησης: Ο χρήστης μπορεί να ακυρώσει μια συγκεκριμένη κράτηση.
+- **Cancel a booking:** The user can cancel a specific booking.
 
-- Διαγραφή του λογαριασμού: Ο χρήστης μπορεί να διαγράψει το λογαριασμό του από το σύστημα.
+- **Delete account:** The user can delete their account from the system.
 
-- Αποσύνδεση: Ο χρήστης μπορεί να αποσυνδεθεί από το σύστημα.
+- **Logout:** The user can log out of the system.
 
-## Εκτέλεση του προγράμματος
+## Running the Program
 
-Για να εκτελέσετε το πρόγραμμα Digital Airlines, ακολουθήστε τα παρακάτω βήματα:
+To run the Digital Airlines application, follow these steps:
 
-1. Εγκαταστήστε την Python στο σύστημά σας.
+1. Install Python on your system.
 
-2. Εγκαταστήστε τα απαιτούμενα πακέτα Python εκτελώντας την ακόλουθη εντολή: pip install -r requirements.txt
+2. Install the required Python packages by running the following command: `pip install -r requirements.txt`
 
-3. Βεβαιωθείτε ότι η MongoDB είναι εγκατεστημένη και εκτελείται στο σύστημά σας.
+3. Make sure MongoDB is installed and running on your system.
 
-4. Ανοίξτε ένα τερματικό ή μια γραμμή εντολών και πλοηγηθείτε στον κατάλογο του έργου.
+4. Open a terminal or command prompt and navigate to the project directory.
 
-5. Εκτελέστε την ακόλουθη εντολή για να εκκινήσετε τον διακομιστή Flask:
+5. Start the Flask server by running: `python app.py`
 
-6. Μόλις ο διακομιστής εκτελεστεί, μπορείτε να αποκτήσετε πρόσβαση στην εφαρμογή Digital Airlines στο πρόγραμμα περιήγησης ιστού σας, επισκεπτόμενοι την τοποθεσία `http://localhost:5000/home`.
+6. Once the server is running, access the Digital Airlines application in your web browser by visiting: `http://localhost:5000/home`
 
-7. Ακολουθήστε τις παρεχόμενες διευθύνσεις URL και τα τελικά σημεία για να αλληλεπιδράσετε με την εφαρμογή ως διαχειριστής ή ως απλός χρήστης.
+7. Follow the provided URLs and endpoints to interact with the application as either an administrator or a regular user.
 
-Σημείωση: ο αρχικός λογαριασμός διαχειριστή με τα ακόλουθα διαπιστευτήρια έχει ήδη δημιουργηθεί: python app.py
+**Note:** An initial admin account has already been created with the following credentials:
 
-- Ηλεκτρονικό ταχυδρομείο: admin@example.com
-- Κωδικός πρόσβασης: admin
+- Email: `admin@example.com`
+- Password: `admin`
 
-Καλή χρήση της εφαρμογής Digital Airlines!
+Enjoy using the Digital Airlines application!
 
-# Ακολουθούν επιτυχημένα παραδείγματα αιτημάτων και οι απαντήσεις που λαμβάνουμε σε κάθε σημείο εισόδου
+---
 
-1. Ανοίγωντας την εφαρμογη θα βρεθούμε στην Αρχική Σελίδα απο εκεί είτε θα κάνουμε User Registration είτε θα κάνουμε Login
+## Sample Requests and Responses
 
+1. When opening the application, you will land on the Home Page. From there, you can either register as a user or log in.
 
-
-
-
-2. Μέτα το login
+2. After login
    
-### Διαχειριστής
+### Admin
 
 - Admin Home
 
@@ -93,12 +91,12 @@
 
 ![image](https://github.com/nenikolaidis/YpoxreotikiErgasia23_e20113_Nikolaidis_Nearchos/assets/129533209/1f4ec61a-2c3e-4fcc-99dd-03405c830eb5)
 
-3. Μετά το User Registration
+3. After User Registration
 
 ![image](https://github.com/nenikolaidis/YpoxreotikiErgasia23_e20113_Nikolaidis_Nearchos/assets/129533209/cc9de386-c76f-45be-a3c8-7093733bd68c)
 
 
-### Απλός χρήστης
+### Regular user
 
 - Simple User Home
 
@@ -125,7 +123,7 @@
 ![image](https://github.com/nenikolaidis/YpoxreotikiErgasia23_e20113_Nikolaidis_Nearchos/assets/129533209/6d1ba60a-c860-4567-a909-4b80debbc300)
 
 
-4. Κοινές διαδικασίες και για τους 2 χρήστες
+4. Common procedures for both users
 
 - Search Flight
 
