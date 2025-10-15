@@ -1,4 +1,4 @@
-# Digital Airlines(University Project)
+# Digital Airlines (University Project)
 
 Digital Airlines is an online application built using Flask and MongoDB. It allows users to register, search for flights, make bookings, and perform other related actions, which are described in detail below.
 
