@@ -94,3 +94,15 @@ def test_delete_flight(admin, anon, user, passenger):
     user.delete("/reservations/{}".format(response.get_json()["reservation"]["reservation_code"]))
     assert admin.delete("/flights/DEF456").status_code == 204
     assert anon.get("/flights/DEF456").status_code == 404
+
+
+def test_restart_moves_departed_sample_flights_forward(app, anon):
+    from airline import create_app, db
+
+    with app.app_context():
+        db.flights().update_one({"code": "ABC123"}, {"$set": {"flight_date": "2020-01-01"}})
+    create_app(dict(app.config))
+
+    assert anon.get("/flights/ABC123").get_json()["flight"]["flight_date"] == days_from_now(30)
+    # Sample flights that haven't departed keep their date
+    assert anon.get("/flights/GHI789").get_json()["flight"]["flight_date"] == days_from_now(60)

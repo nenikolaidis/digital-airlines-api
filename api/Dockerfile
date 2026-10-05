@@ -13,5 +13,6 @@ USER appuser
 
 EXPOSE 5000
 
-# One worker process so seeding runs once; threads handle concurrent requests
-CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--workers", "1", "--threads", "4", "wsgi:app"]
+# One worker process so seeding runs once; threads handle concurrent requests.
+# Hosts like Render choose the port through $PORT; locally it defaults to 5000.
+CMD ["sh", "-c", "exec gunicorn --bind 0.0.0.0:${PORT:-5000} --workers 1 --threads 4 --access-logfile - wsgi:app"]

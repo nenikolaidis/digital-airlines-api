@@ -21,6 +21,8 @@ def create_app(config=None):
         SEED_DATABASE=True,
         SESSION_COOKIE_HTTPONLY=True,
         SESSION_COOKIE_SAMESITE="Lax",
+        # Set to true when served over HTTPS, so the session cookie is never sent over plain HTTP
+        SESSION_COOKIE_SECURE=os.environ.get("SESSION_COOKIE_SECURE", "").lower() == "true",
     )
     if config:
         app.config.update(config)

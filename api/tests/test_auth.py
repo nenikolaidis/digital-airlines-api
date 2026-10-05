@@ -112,3 +112,13 @@ def test_restart_does_not_duplicate_seed_data(app):
 
         assert db.users().count_documents({}) == 2
         assert db.flights().count_documents({}) == 3
+
+
+def test_secure_session_cookie_is_opt_in(monkeypatch, app):
+    from airline import create_app
+
+    assert app.config["SESSION_COOKIE_SECURE"] is False
+    monkeypatch.setenv("SESSION_COOKIE_SECURE", "true")
+    secure = create_app({k: app.config[k] for k in ("MONGO_URI", "MONGO_DB", "SECRET_KEY")})
+    response = secure.test_client().post("/auth/login", json={"email": "nearchos@example.com", "password": "user1234"})
+    assert "Secure" in response.headers["Set-Cookie"]

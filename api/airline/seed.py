@@ -24,7 +24,7 @@ def sample_flight(code, departure, destination, days_ahead, business, economy):
         "code": code,
         "departure_airport": departure,
         "destination_airport": destination,
-        # Relative to the first start, so the sample flights are always in the future
+        # Relative to today, so sample flights are always in the future when inserted
         "flight_date": days_from_now(days_ahead),
         "tickets": {
             "business": {"available": business[0], "price": business[1]},
@@ -65,6 +65,11 @@ def seed_database():
         sample_flight("GHI789", "London", "Paris", 60, (30, 900), (80, 350)),
     ):
         db.flights().update_one({"code": flight["code"]}, {"$setOnInsert": flight}, upsert=True)
+        # Move departed sample flights forward again, so a long-running demo always has bookable flights
+        db.flights().update_one(
+            {"code": flight["code"], "flight_date": {"$lt": days_from_now(0)}},
+            {"$set": {"flight_date": flight["flight_date"]}},
+        )
 
     # Apply ADMIN_PASSWORD on every start, so changing it takes effect on an existing database
     if admin_password:

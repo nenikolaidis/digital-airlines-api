@@ -1,0 +1,22 @@
+# Render Blueprint: https://render.com/docs/blueprint-spec
+# Deploys the API from api/Dockerfile. MongoDB is hosted separately (e.g. a free MongoDB Atlas cluster).
+services:
+  - type: web
+    name: digital-airlines-api
+    runtime: docker
+    plan: free
+    dockerfilePath: ./api/Dockerfile
+    dockerContext: ./api
+    healthCheckPath: /flights
+    autoDeploy: true
+    envVars:
+      # mongodb+srv://... connection string from MongoDB Atlas, entered in the Render dashboard
+      - key: MONGO_URI
+        sync: false
+      # Keep the live admin password private; only the demo user account is public
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: SECRET_KEY
+        generateValue: true
+      - key: SESSION_COOKIE_SECURE
+        value: "true"

@@ -28,7 +28,7 @@ The API runs at <http://localhost:5000>.
 
 ### Demo accounts
 
-On first start, the database is seeded with two accounts and three sample flights dated 30, 45 and 60 days ahead:
+On first start, the database is seeded with two accounts and three sample flights dated 30, 45 and 60 days ahead. Sample flights that have departed are moved forward again on the next start, so a long-running demo always has bookable flights.
 
 | Role  | Email                  | Password                           |
 |-------|------------------------|------------------------------------|
@@ -112,8 +112,20 @@ Each booking gets its own 6-character reservation code and records the price pai
 | `MONGO_DB`       | `DigitalAirlines`         | Database name |
 | `SECRET_KEY`     | `change-me-in-production` | Flask session signing key |
 | `ADMIN_PASSWORD` | `admin1234`               | Password for the seeded admin account, applied on every start |
+| `SESSION_COOKIE_SECURE` | unset              | Set to `true` when served over HTTPS |
+| `PORT`           | `5000`                    | Port gunicorn listens on inside the container |
 
 In Docker, the API runs under gunicorn as a non-root user. MongoDB isn't published to the host, so only the API container can reach it.
+
+## Deployment
+
+The repo includes a [Render](https://render.com) Blueprint ([`render.yaml`](render.yaml)) that deploys the Docker image on Render's free plan, with the database on a free [MongoDB Atlas](https://www.mongodb.com/atlas) cluster:
+
+1. In Atlas, create a free cluster and a database user. Under **Network Access**, allow `0.0.0.0/0`, because Render's free plan has no fixed IP. Copy the `mongodb+srv://...` connection string.
+2. In Render, choose **New → Blueprint** and select this repository.
+3. When asked, set `MONGO_URI` to the Atlas connection string and `ADMIN_PASSWORD` to a private password. `SECRET_KEY` is generated for you.
+
+Render rebuilds on every push to `main`. Free services sleep when idle, so the first request after a while takes up to a minute.
 
 ## Development
 
