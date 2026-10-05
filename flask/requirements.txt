@@ -1,2 +1,2 @@
-pymongo
-flask
+flask>=3.1,<4
+pymongo>=4.10,<5

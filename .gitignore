@@ -1,0 +1,15 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.env
+
+# Local MongoDB data
+mongodb/data/
+data/
+
+# OS / editor
+.DS_Store
+.vscode/
+.idea/
