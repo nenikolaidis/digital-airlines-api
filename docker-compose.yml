@@ -3,8 +3,7 @@ services:
     image: mongo:7
     restart: unless-stopped
     container_name: mongodb
-    ports:
-      - 27017:27017
+    # No ports: MongoDB is only reachable from the flask service on the internal network
     volumes:
       - mongo-data:/data/db
 
@@ -21,7 +20,6 @@ services:
       - MONGO_URI=mongodb://mongodb:27017
       - SECRET_KEY=${SECRET_KEY:-change-me-in-production}
       - ADMIN_PASSWORD=${ADMIN_PASSWORD:-admin}
-      - FLASK_DEBUG=${FLASK_DEBUG:-0}
 
 volumes:
   mongo-data:

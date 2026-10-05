@@ -16,7 +16,7 @@ cd digital-airlines-api
 docker compose up --build
 ```
 
-The API is then available at <http://localhost:5000/home>. Use Postman or `curl` to interact with it. `POST`/`PUT`/`DELETE` endpoints take **form-data**, and `GET` endpoints take **query parameters**. Dates use the format `dd-mm-yyyy`.
+The API is then available at <http://localhost:5000/home>. Use Postman or `curl` to interact with it. `POST`/`PUT`/`DELETE` endpoints take **form-data**, and `GET` endpoints take **query parameters**. Dates use the format `dd-mm-yyyy`. Emails and airport names are case-insensitive.
 
 Example with `curl`:
 
@@ -30,7 +30,7 @@ curl -b cookies.txt "http://localhost:5000/searchFlight?query_type=all"
 
 ### Demo accounts
 
-On first start, the database is seeded with three sample flights and two accounts:
+On first start, the database is seeded with two accounts and three sample flights dated 30, 45 and 60 days ahead:
 
 | Role  | Email                  | Password                      |
 |-------|------------------------|-------------------------------|
@@ -43,8 +43,10 @@ On first start, the database is seeded with three sample flights and two account
 |------------------|-----------------------------|------------------------------------------------------|
 | `MONGO_URI`      | `mongodb://mongodb:27017`   | MongoDB connection string                            |
 | `SECRET_KEY`     | `change-me-in-production`   | Flask session signing key                            |
-| `ADMIN_PASSWORD` | `admin`                     | Password for the seeded admin account                |
-| `FLASK_DEBUG`    | `0`                         | Set to `1` to enable Flask debug mode                |
+| `ADMIN_PASSWORD` | `admin`                     | Password for the seeded admin account, applied on every start |
+| `FLASK_DEBUG`    | unset                       | Set to `1` to enable Flask debug mode (only with `python app.py`) |
+
+In Docker the API runs under gunicorn as a non-root user. MongoDB is not published to the host, so only the API container can reach it.
 
 ### Running without Docker
 
