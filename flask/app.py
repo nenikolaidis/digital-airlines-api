@@ -1,10 +1,11 @@
 from flask import Flask, Response, session, jsonify, request, redirect, url_for
 from pymongo import MongoClient, ReturnDocument
-import secrets, random, string
+from werkzeug.security import generate_password_hash, check_password_hash
+import os, secrets, random, string
 from datetime import datetime
 
-# Connect to our local MongoDB
-client = MongoClient('mongodb://mongodb:27017')
+# Connect to MongoDB (docker-compose sets MONGO_URI to the mongodb service)
+client = MongoClient(os.environ.get("MONGO_URI", "mongodb://localhost:27017"))
 
 
 # Choose InfoSys database
@@ -15,7 +16,8 @@ reservations_collection = db["reservations_collection"]
 
 # Initiate Flask App
 app = Flask(__name__)
-app.secret_key = secrets.token_hex(32)
+# Set SECRET_KEY in production so sessions survive restarts
+app.secret_key = os.environ.get("SECRET_KEY") or secrets.token_hex(32)
 
 TICKET_CLASSES = ("business", "economy")
 
@@ -24,7 +26,7 @@ initial_admin = {
     "name": "John",
     "surname": "Doe",
     "email": "admin@example.com",
-    "password": "admin",
+    "password": generate_password_hash(os.environ.get("ADMIN_PASSWORD", "admin")),
     "date_of_birth": "01-01-2000",
     "country_of_origin": "Greece",
     "passport_number": "E20113",
@@ -68,7 +70,7 @@ user1 = {
     "name": "Nearchos",
     "surname": "Nikolaidis",
     "email": "nearchos@example.com",
-    "password": "12345",
+    "password": generate_password_hash("12345"),
     "date_of_birth": "06-05-2002",
     "country_of_origin": "Greece",
     "passport_number": "ABC123456",
@@ -175,6 +177,7 @@ def user_registration():
     if users_collection.find_one({"email": user_data["email"]}):
         return Response("User with the same email already exists"), 400
 
+    user_data["password"] = generate_password_hash(user_data["password"])
     users_collection.insert_one(user_data)
     return Response("User registration successful with the given email: {}".format(user_data["email"])), 200
 
@@ -183,9 +186,9 @@ def login():
     email = request.form.get("email")
     password = request.form.get("password")
 
-    user = users_collection.find_one({'email': email, 'password': password})
+    user = users_collection.find_one({'email': email})
 
-    if not user:
+    if not user or not password or not check_password_hash(user['password'], password):
         return Response("Wrong email or password."), 401
 
     session['email'] = email
@@ -570,4 +573,4 @@ def logout():
 
 
 if __name__ == "__main__":
-    app.run(host = "0.0.0.0", debug = True, port = 5000)
+    app.run(host = "0.0.0.0", debug = os.environ.get("FLASK_DEBUG") == "1", port = 5000)
