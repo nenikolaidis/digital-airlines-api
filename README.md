@@ -1,73 +1,102 @@
-# Digital Airlines (University Project)
+# Digital Airlines
 
-Digital Airlines is an online application built using Flask and MongoDB. It allows users to register, search for flights, make bookings, and perform other related actions, which are described in detail below.
+A REST API for a small airline booking system, built with **Flask** and **MongoDB** and packaged with **Docker Compose**. Originally a university project. Users can register, search flights and book or cancel tickets, and administrators can manage flights and prices.
 
-## Running the Application
+## Tech stack
 
-### Administrator
+- Python 3.12 / Flask 3
+- MongoDB 7 (via PyMongo)
+- Docker & Docker Compose
 
-An administrator has the following capabilities:
+## Quick start
 
-- **Create a flight:** The administrator can create a new flight by providing required details such as departure airport, destination airport, flight date, ticket availability, and ticket price.
+```bash
+git clone https://github.com/nenikolaidis/Airline-App.git
+cd Airline-App
+docker compose up --build
+```
 
-- **Update ticket prices:** The administrator can update the ticket prices for a specific flight.
+The API is then available at <http://localhost:5000/home>. Use Postman or `curl` to interact with it. `POST`/`PUT`/`DELETE` endpoints take **form-data**, and `GET` endpoints take **query parameters**. Dates use the format `dd-mm-yyyy`.
 
-- **Delete a flight:** The administrator can delete a flight from the system. However, a flight cannot be deleted if there are existing bookings associated with it.
+Example with `curl`:
 
-- **Search for a flight:** The administrator can search for flights based on criteria such as departure airport, destination airport, and flight date.
+```bash
+# log in as the demo user (the session cookie is stored in cookies.txt)
+curl -c cookies.txt -X POST -F email=nearchos@example.com -F password=12345 http://localhost:5000/login
 
-- **View flight details:** The administrator can view the details of a specific flight, including available tickets and their costs.
+# list all flights
+curl -b cookies.txt "http://localhost:5000/searchFlight?query_type=all"
+```
 
-- **Logout:** The administrator can log out of the system.
+### Demo accounts
 
-### Regular User
+On first start, the database is seeded with three sample flights and two accounts:
 
-A regular user has the following capabilities:
+| Role  | Email                  | Password                      |
+|-------|------------------------|-------------------------------|
+| Admin | `admin@example.com`    | `admin` (or `$ADMIN_PASSWORD`) |
+| User  | `nearchos@example.com` | `12345`                       |
 
-- **Search for a flight:** The user can search for flights based on criteria such as departure airport, destination airport, and flight date.
+### Configuration
 
-- **View flight details:** The user can view the details of a specific flight, including available tickets and their costs.
+| Variable         | Default (docker-compose)    | Description                                          |
+|------------------|-----------------------------|------------------------------------------------------|
+| `MONGO_URI`      | `mongodb://mongodb:27017`   | MongoDB connection string                            |
+| `SECRET_KEY`     | `change-me-in-production`   | Flask session signing key                            |
+| `ADMIN_PASSWORD` | `admin`                     | Password for the seeded admin account                |
+| `FLASK_DEBUG`    | `0`                         | Set to `1` to enable Flask debug mode                |
 
-- **Make a booking:** The user can make a booking for a specific flight by providing the required passenger information.
+### Running without Docker
 
-- **View bookings:** The user can see their existing bookings.
+Requires Python 3.10+ and a MongoDB instance running on `localhost:27017`.
 
-- **View booking details:** The user can view details of a specific booking.
+```bash
+cd flask
+pip install -r requirements.txt
+python app.py
+```
 
-- **Cancel a booking:** The user can cancel a specific booking.
+## API
 
-- **Delete account:** The user can delete their account from the system.
+### Public
 
-- **Logout:** The user can log out of the system.
+| Method | Endpoint            | Description                                                                 |
+|--------|---------------------|-----------------------------------------------------------------------------|
+| GET    | `/home`             | Welcome message and available endpoints                                     |
+| POST   | `/userRegistration` | `name`, `surname`, `email`, `password`, `date_of_birth`, `country_of_origin`, `passport_number` |
+| POST   | `/login`            | `email`, `password`; redirects to the admin or user home                    |
+| POST   | `/logout`           | Ends the session                                                            |
 
-## Running the Program
+### Admin
 
-To run the Digital Airlines application, follow these steps:
+| Method | Endpoint              | Description                                                                 |
+|--------|-----------------------|-----------------------------------------------------------------------------|
+| POST   | `/createFlight`       | `departure_airport`, `destination_airport`, `flight_date`, `business_tickets_available`, `business_tickets_cost`, `economy_tickets_available`, `economy_tickets_cost` |
+| PUT    | `/updateTicketsPrice` | `flight_code`, `new_business_tickets_cost`, `new_economy_tickets_cost`      |
+| DELETE | `/deleteFlight`       | `flight_code`; refused if the flight has reservations                       |
 
-1. Install Python on your system.
+### User
 
-2. Install the required Python packages by running the following command: `pip install -r requirements.txt`
+| Method | Endpoint                     | Description                                                          |
+|--------|------------------------------|----------------------------------------------------------------------|
+| POST   | `/makeReservation`           | `flight_code`, `first_name`, `last_name`, `passport_number`, `date_of_birth`, `email`, `ticket_class` (`business`/`economy`); returns a reservation code |
+| GET    | `/displayReservations`       | Your reservations                                                    |
+| GET    | `/displayReservationDetails` | `reservation_code`                                                   |
+| DELETE | `/cancelReservation`         | `reservation_code`; the ticket becomes available again               |
+| DELETE | `/deleteAccount`             | Deletes your account and cancels your reservations                   |
 
-3. Make sure MongoDB is installed and running on your system.
+### Admin & user
 
-4. Open a terminal or command prompt and navigate to the project directory.
-
-5. Start the Flask server by running: `python app.py`
-
-6. Once the server is running, access the Digital Airlines application in your web browser by visiting: `http://localhost:5000/home`
-
-7. Follow the provided URLs and endpoints to interact with the application as either an administrator or a regular user.
-
-**Note:** An initial admin account has already been created with the following credentials:
-
-- Email: `admin@example.com`
-- Password: `admin`
-
-Enjoy using the Digital Airlines application!
+| Method | Endpoint         | Description                                                                 |
+|--------|------------------|-----------------------------------------------------------------------------|
+| GET    | `/searchFlight`  | `query_type` = `all`, `by_date` (`flight_date`), `by_airports` (`departure_airport`, `destination_airport`) or `by_airports_and_date` |
+| GET    | `/flightDetails` | `flight_code`; availability, prices and passenger list                     |
 
 ---
 
-## Sample Requests and Responses
+## Screenshots
+
+> These screenshots are from the original version of the project, so some response formats differ slightly from the current API.
 
 1. When opening the application, you will land on the Home Page. From there, you can either register as a user or log in.
 
