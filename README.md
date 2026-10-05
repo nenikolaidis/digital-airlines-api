@@ -10,6 +10,7 @@ It started as a university project for the **University of Piraeus** and has sin
 
 - Python 3.12, Flask 3, gunicorn
 - MongoDB 7 (via PyMongo)
+- OpenAPI 3.1 spec with Swagger UI
 - pytest and ruff, run by GitHub Actions
 - Docker and Docker Compose
 
@@ -21,7 +22,9 @@ cd digital-airlines-api
 docker compose up --build
 ```
 
-The API runs at <http://localhost:5000>. `GET /` lists every endpoint.
+The API runs at <http://localhost:5000>.
+
+**Interactive docs:** open <http://localhost:5000/docs> to browse every endpoint in Swagger UI and try it from the browser. Run `POST /auth/login` with a demo account first, and the other requests then use that session. The OpenAPI spec itself is at `/openapi.json`.
 
 ### Demo accounts
 
@@ -140,6 +143,8 @@ api/
 │   ├── access.py        # @login_required(role=...)
 │   ├── validation.py    # request parsing and validation helpers
 │   ├── errors.py        # JSON error responses
+│   ├── openapi.py       # OpenAPI spec (a test checks it matches the routes)
+│   ├── docs.py          # /docs (Swagger UI) and /openapi.json
 │   ├── db.py            # collection accessors and unique code generation
 │   └── seed.py          # indexes and demo data
 ├── tests/

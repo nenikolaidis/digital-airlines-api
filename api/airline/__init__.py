@@ -6,7 +6,7 @@ import secrets
 from flask import Flask, jsonify
 from pymongo import MongoClient
 
-from . import auth, errors, flights, reservations
+from . import auth, docs, errors, flights, reservations
 from .seed import create_indexes, seed_database
 
 
@@ -32,11 +32,13 @@ def create_app(config=None):
     app.register_blueprint(auth.bp)
     app.register_blueprint(flights.bp)
     app.register_blueprint(reservations.bp)
+    app.register_blueprint(docs.bp)
 
     @app.get("/")
     def index():
         return jsonify(
             name="Digital Airlines API",
+            docs="/docs",
             endpoints=sorted(
                 f"{method} {rule.rule}"
                 for rule in app.url_map.iter_rules()
