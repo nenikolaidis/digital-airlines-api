@@ -1,10 +1,9 @@
-from flask import Flask, Response, session,jsonify, request, redirect, url_for
-from pymongo import MongoClient
-import json, secrets, random, string
+from flask import Flask, Response, session, jsonify, request, redirect, url_for
+from pymongo import MongoClient, ReturnDocument
+import secrets, random, string
 from datetime import datetime
 
 # Connect to our local MongoDB
-#client = MongoClient("172.18.0.1",27017)
 client = MongoClient('mongodb://mongodb:27017')
 
 
@@ -18,7 +17,9 @@ reservations_collection = db["reservations_collection"]
 app = Flask(__name__)
 app.secret_key = secrets.token_hex(32)
 
-# Add an initial administrator to the users_collection
+TICKET_CLASSES = ("business", "economy")
+
+# Initial administrator, sample flights and sample user
 initial_admin = {
     "name": "John",
     "surname": "Doe",
@@ -30,9 +31,6 @@ initial_admin = {
     "role": "admin"
 }
 
-# Insert the initial_admin document into the users_collection
-users_collection.insert_one(initial_admin)
-
 flight1 = {
     "code": "ABC123",
     "departure_airport": "New York",
@@ -43,7 +41,6 @@ flight1 = {
     "economy_tickets_available": 100,
     "economy_tickets_cost": 400
 }
-flights_collection.insert_one(flight1)
 
 flight2 = {
     "code": "DEF456",
@@ -55,7 +52,6 @@ flight2 = {
     "economy_tickets_available": 150,
     "economy_tickets_cost": 600
 }
-flights_collection.insert_one(flight2)
 
 flight3 = {
     "code": "GHI789",
@@ -67,7 +63,6 @@ flight3 = {
     "economy_tickets_available": 80,
     "economy_tickets_cost": 350
 }
-flights_collection.insert_one(flight3)
 
 user1 = {
     "name": "Nearchos",
@@ -79,10 +74,28 @@ user1 = {
     "passport_number": "ABC123456",
     "role": "simple"
 }
-users_collection.insert_one(user1)
+
+def seed_database():
+    users_collection.create_index("email", unique=True)
+    flights_collection.create_index("code", unique=True)
+    reservations_collection.create_index("reservation_code", unique=True)
+
+    # Only insert the sample documents if they don't exist yet, so restarts don't create duplicates
+    for user in [initial_admin, user1]:
+        users_collection.update_one({"email": user["email"]}, {"$setOnInsert": user}, upsert=True)
+    for flight in [flight1, flight2, flight3]:
+        flights_collection.update_one({"code": flight["code"]}, {"$setOnInsert": flight}, upsert=True)
+
+seed_database()
 
 def generate_code():
     code = ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
+    return code
+
+def generate_unique_code(collection, field):
+    code = generate_code()
+    while collection.find_one({field: code}):
+        code = generate_code()
     return code
 
 @app.route("/home")
@@ -113,7 +126,6 @@ def adminHome():
     response = {
         "message": "Welcome Admin to Digital Airlines! If you want to POST, PUT OR DELETE data you should click Body --> form-data and fill key and value. If you want to GET data you should click Params and fill key and value.  Please provide the date in the format dd-mm-yyyy.",
         "admin_urls": admin_urls
-        
     }
 
     return jsonify(response)
@@ -128,7 +140,7 @@ def simpleUserHome():
         "/displayReservationDetails (GET)",
         "/cancelReservation (DELETE)",
         "/deleteAccount (DELETE)",
-        "/logout "
+        "/logout (POST)"
     ]
 
     response = {
@@ -140,79 +152,79 @@ def simpleUserHome():
 
 @app.route("/userRegistration", methods=["POST"])
 def user_registration():
+    user_data = {
+        "name": request.form.get("name"),
+        "surname": request.form.get("surname"),
+        "email": request.form.get("email"),
+        "password": request.form.get("password"),
+        "date_of_birth": request.form.get("date_of_birth"),
+        "country_of_origin": request.form.get("country_of_origin"),
+        "passport_number": request.form.get("passport_number"),
+        "role": "simple"
+    }
+
+    if not all(user_data.values()):
+        return Response("Incomplete data was given"), 400
+
     try:
-        user_data = {
-            "name": request.form.get("name"),
-            "surname": request.form.get("surname"),
-            "email": request.form.get("email"),
-            "password": request.form.get("password"),
-            "date_of_birth": datetime.strptime(request.form.get("date_of_birth"), "%d-%m-%Y").strftime("%d-%m-%Y"),
-            "country_of_origin": request.form.get("country_of_origin"),
-            "passport_number": request.form.get("passport_number"),
-            "role": "simple"
-        }
-
-        if user_data.get("role") == "simple" and not all(user_data.get(field) for field in ["name", "surname", "password", "date_of_birth", "country_of_origin", "passport_number"]):
-            return Response("Incomplete data was given"), 400
-
-        # Check if user with the same email already exists
-        if users_collection.find_one({"email": user_data["email"]}):
-            return Response("User with the same email already exists"), 400
-        else:
-            # Insert the user data into the users_collection
-            users_collection.insert_one(user_data)
-            return Response("User registration successful with the given email: {}".format(user_data["email"])), 200
-
+        user_data["date_of_birth"] = datetime.strptime(user_data["date_of_birth"], "%d-%m-%Y").strftime("%d-%m-%Y")
     except ValueError:
         return Response("Invalid date format. Please provide the date of birth in the format dd-mm-yyyy."), 400
 
+    # Check if user with the same email already exists
+    if users_collection.find_one({"email": user_data["email"]}):
+        return Response("User with the same email already exists"), 400
+
+    users_collection.insert_one(user_data)
+    return Response("User registration successful with the given email: {}".format(user_data["email"])), 200
+
 @app.route("/login", methods=["POST"])
 def login():
-
     email = request.form.get("email")
     password = request.form.get("password")
 
     user = users_collection.find_one({'email': email, 'password': password})
 
-    if user["email"] is not None: # Check if user exists
-        session['email'] = email
-        session['role'] = user['role']
-        session.permanent = True
-
-        if user['role'] == 'admin':
-            return redirect(url_for('adminHome'))
-        elif user['role'] == 'simple':
-            return redirect(url_for('simpleUserHome'))
-    else:
+    if not user:
         return Response("Wrong email or password."), 401
 
-    return Response("Wrong email or password.", 401)  # Additional response for incorrect email or password
+    session['email'] = email
+    session['role'] = user['role']
+    session.permanent = True
 
-@app.route("/createFlight", methods=["POST"]) # admin 
+    if user['role'] == 'admin':
+        return redirect(url_for('adminHome'))
+    return redirect(url_for('simpleUserHome'))
+
+@app.route("/createFlight", methods=["POST"]) # admin
 def createFlight():
-    
     if 'email' in session and session['role'] == 'admin':
+        fields = ["departure_airport", "destination_airport", "flight_date", "business_tickets_available", "business_tickets_cost", "economy_tickets_available", "economy_tickets_cost"]
+        if not all(request.form.get(field) for field in fields):
+            return Response("Incomplete data was given"), 400
+
         try:
-            flight_data = {
-                "code": generate_code(),
-                "departure_airport": request.form.get("departure_airport"),
-                "destination_airport": request.form.get("destination_airport"),
-                "flight_date": datetime.strptime(request.form.get("flight_date"), "%d-%m-%Y").strftime("%d-%m-%Y"),
-                "business_tickets_available": request.form.get("business_tickets_available"),
-                "business_tickets_cost": request.form.get("business_tickets_cost"),
-                "economy_tickets_available": request.form.get("economy_tickets_available"),
-                "economy_tickets_cost": request.form.get("economy_tickets_cost")
-            }
-
-            if flight_data.get("code") is not None and not all(flight_data.get(field) for field in ["departure_airport", "destination_airport", "flight_date", "business_tickets_available", "business_tickets_cost", "economy_tickets_available","economy_tickets_cost"]):
-                return Response("Incomplete data was given"), 400
-            flights_collection.insert_one(flight_data)
-
+            flight_date = datetime.strptime(request.form.get("flight_date"), "%d-%m-%Y").strftime("%d-%m-%Y")
         except ValueError:
             return Response("Invalid date format. Please provide the date in the format dd-mm-yyyy."), 400
-        
-        return Response("The flight(code: {}) with departure from {} and destination to {} was added to the MongoDB".format(flight_data['code'],flight_data['departure_airport'], flight_data['destination_airport'])), 200
-    
+
+        try:
+            flight_data = {
+                "code": generate_unique_code(flights_collection, "code"),
+                "departure_airport": request.form.get("departure_airport"),
+                "destination_airport": request.form.get("destination_airport"),
+                "flight_date": flight_date,
+                "business_tickets_available": int(request.form.get("business_tickets_available")),
+                "business_tickets_cost": float(request.form.get("business_tickets_cost")),
+                "economy_tickets_available": int(request.form.get("economy_tickets_available")),
+                "economy_tickets_cost": float(request.form.get("economy_tickets_cost"))
+            }
+        except ValueError:
+            return Response("Ticket availability must be whole numbers and ticket costs must be numbers."), 400
+
+        flights_collection.insert_one(flight_data)
+        return Response("The flight(code: {}) with departure from {} and destination to {} was added to the MongoDB".format(flight_data['code'], flight_data['departure_airport'], flight_data['destination_airport'])), 200
+
     else:
         return Response("Unauthorized access."), 401
 
@@ -226,31 +238,37 @@ def updateTicketsPrice():
         if not all([flight_code, new_business_tickets_cost, new_economy_tickets_cost]):
             return Response("Incomplete data provided"), 400
 
+        try:
+            new_business_tickets_cost = float(new_business_tickets_cost)
+            new_economy_tickets_cost = float(new_economy_tickets_cost)
+        except ValueError:
+            return Response("Ticket costs must be numbers."), 400
+
         # Update the flight ticket prices in the database
-        flight = flights_collection.update_one(
+        flight = flights_collection.find_one_and_update(
             {"code": flight_code},
             {
                 "$set": {
                     "business_tickets_cost": new_business_tickets_cost,
                     "economy_tickets_cost": new_economy_tickets_cost
                 }
-            }
+            },
+            return_document=ReturnDocument.AFTER
         )
 
-        if flight.modified_count == 0:
+        if not flight:
             return Response("Flight not found"), 404
-        
-        flight = flights_collection.find_one({"code":flight_code})
+
         flight_data = {
-        "departure_airport": flight["departure_airport"],
-        "destination_airport": flight["destination_airport"],
-        "flight_date": flight["flight_date"],
-        "business_tickets_available": flight["business_tickets_available"],
-        "business_tickets_cost": flight["business_tickets_cost"],
-        "economy_tickets_available": flight["economy_tickets_available"],
-        "economy_tickets_cost": flight["economy_tickets_cost"]
-    }
-        return Response("Ticket prices updated for flight {} \n The updated data: {}".format(flight_code,flight_data)), 200
+            "departure_airport": flight["departure_airport"],
+            "destination_airport": flight["destination_airport"],
+            "flight_date": flight["flight_date"],
+            "business_tickets_available": flight["business_tickets_available"],
+            "business_tickets_cost": flight["business_tickets_cost"],
+            "economy_tickets_available": flight["economy_tickets_available"],
+            "economy_tickets_cost": flight["economy_tickets_cost"]
+        }
+        return jsonify({"message": "Ticket prices updated for flight {}".format(flight_code), "flight": flight_data}), 200
 
     else:
         return Response("Unauthorized access."), 401
@@ -263,7 +281,7 @@ def deleteFlight():
         flight = flights_collection.find_one({"code": flight_code})
 
         if flight:
-            reservations = reservations_collection.find_one({"reservation_code": flight_code})
+            reservations = reservations_collection.find_one({"flight_code": flight_code})
 
             if reservations:
                 return Response("Flight cannot be deleted as there are existing reservations."), 403
@@ -278,80 +296,81 @@ def deleteFlight():
 @app.route("/makeReservation", methods=["POST"]) # simple
 def makeReservation():
     if 'email' in session and session['role'] == 'simple':
+        flight_code = request.form.get("flight_code")
+        reservation_data = {
+            "first_name": request.form.get("first_name"),
+            "last_name": request.form.get("last_name"),
+            "passport_number": request.form.get("passport_number"),
+            "date_of_birth": request.form.get("date_of_birth"),
+            "email": request.form.get("email"),
+            "ticket_class": request.form.get("ticket_class")
+        }
+
+        if not all(reservation_data.values()):
+            return Response("Incomplete passenger information."), 400
+
         try:
-            flight_code = request.form.get("flight_code")
-            reservation_data = {
-                "first_name": request.form.get("first_name"),
-                "last_name": request.form.get("last_name"),
-                "passport_number": request.form.get("passport_number"),
-                "date_of_birth": datetime.strptime(request.form.get("date_of_birth"), "%d-%m-%Y").strftime("%d-%m-%Y"),
-                "email": request.form.get("email"),
-                "ticket_class": request.form.get("ticket_class")
-            }
-
-            if not all(reservation_data.get(field) for field in ["first_name", "last_name", "passport_number", "date_of_birth", "email", "ticket_class"]):
-                return Response("Incomplete passenger information."), 400
-
-            flight = flights_collection.find_one({"code": flight_code})
-            if not flight:
-                return Response("Flight not found."), 404
-
-            # Check ticket availability based on the ticket class
-            ticket_class = reservation_data['ticket_class']
-            if ticket_class == 'business' and flight['business_tickets_available'] <= 0:
-                return Response("No business class tickets available for this flight."), 400
-            elif ticket_class == 'economy' and flight['economy_tickets_available'] <= 0:
-                return Response("No economy class tickets available for this flight."), 400
-
-            # Reduce available ticket count
-            if ticket_class == 'business':
-                flights_collection.update_one({"code": flight_code}, {"$inc": {"business_tickets_available": -1}})
-            elif ticket_class == 'economy':
-                flights_collection.update_one({"code": flight_code}, {"$inc": {"economy_tickets_available": -1}})
-            else:
-                return Response("There isn't such a ticket class."), 400
-
-            # Save reservation details
-            reservations_collection.insert_one({
-                "reservation_code": flight_code,
-                "reservation_data": reservation_data
-            })
-
-            return Response("Ticket booked successfully for flight {} in {}.".format(flight_code,ticket_class)), 200
-
+            reservation_data["date_of_birth"] = datetime.strptime(reservation_data["date_of_birth"], "%d-%m-%Y").strftime("%d-%m-%Y")
         except ValueError:
             return Response("Invalid date format. Please provide the date in the format dd-mm-yyyy."), 400
 
+        ticket_class = reservation_data['ticket_class']
+        if ticket_class not in TICKET_CLASSES:
+            return Response("There isn't such a ticket class."), 400
+
+        if not flights_collection.find_one({"code": flight_code}):
+            return Response("Flight not found."), 404
+
+        # Reduce available ticket count, only if there is a ticket left (atomic check-and-decrement)
+        available_field = "{}_tickets_available".format(ticket_class)
+        flight = flights_collection.find_one_and_update(
+            {"code": flight_code, available_field: {"$gt": 0}},
+            {"$inc": {available_field: -1}}
+        )
+        if not flight:
+            return Response("No {} class tickets available for this flight.".format(ticket_class)), 400
+
+        # Save reservation details
+        reservation_code = generate_unique_code(reservations_collection, "reservation_code")
+        reservations_collection.insert_one({
+            "reservation_code": reservation_code,
+            "flight_code": flight_code,
+            "user_email": session['email'],
+            "reservation_data": reservation_data
+        })
+
+        return Response("Ticket booked successfully for flight {} in {}. Reservation code: {}".format(flight_code, ticket_class, reservation_code)), 200
+
     else:
         return Response("Unauthorized access."), 401
-    
-@app.route("/displayReservations", methods=["GET"]) # simple error empty reservation but it is the same format as the def flightDetails()
+
+@app.route("/displayReservations", methods=["GET"]) # simple
 def displayReservations():
     if 'email' in session and session['role'] == 'simple':
         user_email = session['email']
-        reservations = reservations_collection.find({"email": user_email})
+        reservations = reservations_collection.find({"user_email": user_email})
 
-        
-        if reservations:
-            response= {
-                'user_email': user_email,
-                'reservations': []
+        response = {
+            'user_email': user_email,
+            'reservations': []
+        }
+        for reservation in reservations:
+            reservation_data = reservation["reservation_data"]
+            reservation_details = {
+                "reservation_code": reservation["reservation_code"],
+                "flight_code": reservation["flight_code"],
+                "passenger_name": reservation_data["first_name"] + " " + reservation_data["last_name"],
+                "passport_number": reservation_data["passport_number"],
+                "date_of_birth": reservation_data["date_of_birth"],
+                "email": reservation_data["email"],
+                "ticket_class": reservation_data["ticket_class"]
             }
-            for reservation in reservations:
-                reservation_data = reservation["reservation_data"]
-                reservation_details = {
-                    "reservation_code": reservation_data["reservation_data"],
-                    "passenger_name": reservation_data["first_name"] + " " + reservation_data["last_name"],
-                    "passport_number": reservation_data["passport_number"],
-                    "date_of_birth": reservation_data["date_of_birth"],
-                    "email": reservation_data["email"],
-                    "ticket_class": reservation_data["ticket_class"]
-                }
 
-                response["reservations"].append(reservation_details)
-            return json.dumps(response), 200
-        else:
+            response["reservations"].append(reservation_details)
+
+        if not response["reservations"]:
             return Response("No reservations found for the user with email: {}".format(user_email)), 404
+        return jsonify(response), 200
 
     else:
         return Response("Unauthorized access."), 401
@@ -360,19 +379,20 @@ def displayReservations():
 def displayReservationDetails():
     if 'email' in session and session['role'] == 'simple':
         reservation_code = request.args.get("reservation_code")
-        reservation = reservations_collection.find_one({"reservation_code": reservation_code})
+        reservation = reservations_collection.find_one({"reservation_code": reservation_code, "user_email": session['email']})
 
         if not reservation:
             return Response("Reservation not found."), 404
         else:
-            flight_code = reservation["reservation_code"]
-            flight = flights_collection.find_one({"code": flight_code})
+            flight = flights_collection.find_one({"code": reservation["flight_code"]})
 
             if not flight:
                 return Response("Flight not found."), 404
             else:
                 reservation_data = reservation["reservation_data"]
                 reservation_details = {
+                    "reservation_code": reservation["reservation_code"],
+                    "flight_code": reservation["flight_code"],
                     "departure_airport": flight["departure_airport"],
                     "destination_airport": flight["destination_airport"],
                     "flight_date": flight["flight_date"],
@@ -382,39 +402,29 @@ def displayReservationDetails():
                     "email": reservation_data["email"],
                     "ticket_class": reservation_data["ticket_class"]
                 }
-                
 
-                return  json.dumps(reservation_details), 200
+                return jsonify(reservation_details), 200
 
     else:
         return Response("Unauthorized access."), 401
+
+def release_reservation(reservation):
+    # Give the ticket back to the flight and delete the reservation
+    ticket_class = reservation["reservation_data"]["ticket_class"]
+    flights_collection.update_one({"code": reservation["flight_code"]}, {"$inc": {"{}_tickets_available".format(ticket_class): 1}})
+    reservations_collection.delete_one({"_id": reservation["_id"]})
 
 @app.route("/cancelReservation", methods=["DELETE"]) # simple
 def cancelReservation():
     if 'email' in session and session['role'] == 'simple':
         reservation_code = request.args.get("reservation_code")
-        reservation = reservations_collection.find_one({"reservation_code": reservation_code})
+        reservation = reservations_collection.find_one({"reservation_code": reservation_code, "user_email": session['email']})
 
         if not reservation:
             return Response("Reservation not found."), 404
-        else:
-            flight_code = reservation["reservation_code"]
-            flight = flights_collection.find_one({"code": flight_code})
 
-            if not flight:
-                return Response("Flight not found."), 404
-            else:
-                # Increase available ticket count based on ticket class
-                ticket_class = reservation["reservation_data"]["ticket_class"]
-                if ticket_class == 'business':
-                    flights_collection.update_one({"code": flight_code}, {"$inc": {"business_tickets_available": 1}})
-                elif ticket_class == 'economy':
-                    flights_collection.update_one({"code": flight_code}, {"$inc": {"economy_tickets_available": 1}})
-
-                # Delete the reservation
-                reservations_collection.delete_one({"reservation_code": reservation_code})
-
-                return Response("Reservation with code {} has been canceled.".format(reservation_code)), 200
+        release_reservation(reservation)
+        return Response("Reservation with code {} has been canceled.".format(reservation_code)), 200
 
     else:
         return Response("Unauthorized access."), 401
@@ -424,18 +434,22 @@ def deleteAccount():
     if 'email' in session and session['role'] == 'simple':
         user_email = session['email']
 
+        # Cancel the user's reservations so their tickets become available again
+        for reservation in reservations_collection.find({"user_email": user_email}):
+            release_reservation(reservation)
+
         # Delete the user account
         users_collection.delete_one({"email": user_email})
 
         # Clear the session
         session.clear()
 
-        return Response("Account deleted successfullyfor user {}.".format(user_email)), 200
+        return Response("Account deleted successfully for user {}.".format(user_email)), 200
 
     else:
         return Response("Unauthorized access."), 401
 
-@app.route("/searchFlight", methods=["GET"]) # admin and simple 
+@app.route("/searchFlight", methods=["GET"]) # admin and simple
 def searchFlight():
     if 'email' in session:
         query_type = request.args.get("query_type")
@@ -489,8 +503,8 @@ def searchFlight():
             "flights": flight_list
         }
 
-        return json.dumps(response), 200
-    
+        return jsonify(response), 200
+
     else:
         return Response("Unauthorized access."), 401
 
@@ -511,7 +525,7 @@ def flightDetails():
             business_ticket_cost = float(flight["business_tickets_cost"])
 
             # Retrieve reservations for the flight
-            reservations = reservations_collection.find({"reservation_code": flight_code})
+            reservations = reservations_collection.find({"flight_code": flight_code})
 
             # Prepare flight details JSON object
             flight_details = {
@@ -525,8 +539,7 @@ def flightDetails():
                 "business_ticket_cost": business_ticket_cost,
                 "reservations": []
             }
-            
-           
+
             # Prepare reservations JSON objects
             for reservation in reservations:
                 reservation_data = reservation["reservation_data"]
@@ -534,18 +547,18 @@ def flightDetails():
                     "passenger_name": reservation_data["first_name"] + " " + reservation_data["last_name"],
                     "ticket_class": reservation_data["ticket_class"]
                 }
-                
+
                 flight_details["reservations"].append(reservation_details)
 
-            return json.dumps(flight_details), 200
+            return jsonify(flight_details), 200
 
         else:
             return Response("Flight not found. (http://localhost:5000/flightDetails?flight_code=xxxxxx)"), 404
 
     else:
         return Response("Unauthorized access."), 401
-    
-@app.route("/logout")
+
+@app.route("/logout", methods=["GET", "POST"])
 def logout():
     if 'email' in session:
         email = session['email']
