@@ -9,7 +9,7 @@ services:
 
   flask-service:
     build:
-      context: ./flask
+      context: ./api
     restart: unless-stopped
     container_name: flask
     depends_on:
@@ -19,7 +19,7 @@ services:
     environment:
       - MONGO_URI=mongodb://mongodb:27017
       - SECRET_KEY=${SECRET_KEY:-change-me-in-production}
-      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-admin}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-admin1234}
 
 volumes:
   mongo-data:

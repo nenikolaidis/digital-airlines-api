@@ -1,12 +1,17 @@
-# Digital Airlines
+# Digital Airlines API
 
-A REST API for a small airline booking system, built with **Flask** and **MongoDB** and packaged with **Docker Compose**. Originally a university project. Users can register, search flights and book or cancel tickets, and administrators can manage flights and prices.
+[![CI](https://github.com/nenikolaidis/digital-airlines-api/actions/workflows/ci.yml/badge.svg)](https://github.com/nenikolaidis/digital-airlines-api/actions/workflows/ci.yml)
+
+A JSON REST API for a small airline booking system, built with **Flask** and **MongoDB** and packaged with **Docker Compose**. Anyone can search flights. Registered users can book and cancel tickets, and administrators manage flights and prices.
+
+It started as a university project for the **University of Piraeus** and has since been rebuilt with an app factory and Blueprints, input validation, atomic seat booking, a pytest suite and CI.
 
 ## Tech stack
 
-- Python 3.12 / Flask 3
+- Python 3.12, Flask 3, gunicorn
 - MongoDB 7 (via PyMongo)
-- Docker & Docker Compose
+- pytest and ruff, run by GitHub Actions
+- Docker and Docker Compose
 
 ## Quick start
 
@@ -16,163 +21,128 @@ cd digital-airlines-api
 docker compose up --build
 ```
 
-The API is then available at <http://localhost:5000/home>. Use Postman or `curl` to interact with it. `POST`/`PUT`/`DELETE` endpoints take **form-data**, and `GET` endpoints take **query parameters**. Dates use the format `dd-mm-yyyy`. Emails and airport names are case-insensitive.
-
-Example with `curl`:
-
-```bash
-# log in as the demo user (the session cookie is stored in cookies.txt)
-curl -c cookies.txt -X POST -F email=nearchos@example.com -F password=12345 http://localhost:5000/login
-
-# list all flights
-curl -b cookies.txt "http://localhost:5000/searchFlight?query_type=all"
-```
+The API runs at <http://localhost:5000>. `GET /` lists every endpoint.
 
 ### Demo accounts
 
 On first start, the database is seeded with two accounts and three sample flights dated 30, 45 and 60 days ahead:
 
-| Role  | Email                  | Password                      |
-|-------|------------------------|-------------------------------|
-| Admin | `admin@example.com`    | `admin` (or `$ADMIN_PASSWORD`) |
-| User  | `nearchos@example.com` | `12345`                       |
+| Role  | Email                  | Password                           |
+|-------|------------------------|------------------------------------|
+| Admin | `admin@example.com`    | `admin1234` (or `$ADMIN_PASSWORD`) |
+| User  | `nearchos@example.com` | `user1234`                         |
 
-### Configuration
+### Try it with curl
 
-| Variable         | Default (docker-compose)    | Description                                          |
-|------------------|-----------------------------|------------------------------------------------------|
-| `MONGO_URI`      | `mongodb://mongodb:27017`   | MongoDB connection string                            |
-| `SECRET_KEY`     | `change-me-in-production`   | Flask session signing key                            |
-| `ADMIN_PASSWORD` | `admin`                     | Password for the seeded admin account, applied on every start |
-| `FLASK_DEBUG`    | unset                       | Set to `1` to enable Flask debug mode (only with `python app.py`) |
-
-In Docker the API runs under gunicorn as a non-root user. MongoDB is not published to the host, so only the API container can reach it.
-
-### Running without Docker
-
-Requires Python 3.10+ and a MongoDB instance running on `localhost:27017`.
+Requests and responses are JSON. Logging in sets a session cookie, which `-c`/`-b` store and send back.
 
 ```bash
-cd flask
-pip install -r requirements.txt
-python app.py
+# search flights (no login needed)
+curl "http://localhost:5000/flights?from=new%20york&to=london"
+
+# log in as the demo user
+curl -c cookies.txt --json '{"email": "nearchos@example.com", "password": "user1234"}' \
+  http://localhost:5000/auth/login
+
+# book an economy ticket
+curl -b cookies.txt --json '{
+  "flight_code": "ABC123",
+  "ticket_class": "economy",
+  "passenger": {
+    "first_name": "Maria", "last_name": "Papadopoulou", "passport_number": "AE123456",
+    "date_of_birth": "1990-04-12", "email": "maria@example.com"
+  }
+}' http://localhost:5000/reservations
+
+# list your reservations
+curl -b cookies.txt http://localhost:5000/reservations
 ```
+
+(`--json` needs curl 7.82 or newer. With an older curl, use `-H "Content-Type: application/json" -d '...'`.)
 
 ## API
 
-### Public
+Dates use the format `YYYY-MM-DD`. Emails and airport names are case-insensitive. Errors always return a JSON body: `{"error": "..."}`.
 
-| Method | Endpoint            | Description                                                                 |
-|--------|---------------------|-----------------------------------------------------------------------------|
-| GET    | `/home`             | Welcome message and available endpoints                                     |
-| POST   | `/userRegistration` | `name`, `surname`, `email`, `password`, `date_of_birth`, `country_of_origin`, `passport_number` |
-| POST   | `/login`            | `email`, `password`; redirects to the admin or user home                    |
-| POST   | `/logout`           | Ends the session                                                            |
+### Auth
 
-### Admin
+| Method | Endpoint         | Access    | Description |
+|--------|------------------|-----------|-------------|
+| POST   | `/auth/register` | public    | Body: `name`, `surname`, `email`, `password` (8+ characters), `date_of_birth`, `country_of_origin`, `passport_number` |
+| POST   | `/auth/login`    | public    | Body: `email`, `password`. Starts a session |
+| POST   | `/auth/logout`   | logged in | Ends the session |
+| GET    | `/me`            | logged in | Your profile |
+| DELETE | `/me`            | user      | Deletes your account and cancels your reservations |
 
-| Method | Endpoint              | Description                                                                 |
-|--------|-----------------------|-----------------------------------------------------------------------------|
-| POST   | `/createFlight`       | `departure_airport`, `destination_airport`, `flight_date`, `business_tickets_available`, `business_tickets_cost`, `economy_tickets_available`, `economy_tickets_cost` |
-| PUT    | `/updateTicketsPrice` | `flight_code`, `new_business_tickets_cost`, `new_economy_tickets_cost`      |
-| DELETE | `/deleteFlight`       | `flight_code`; refused if the flight has reservations                       |
+### Flights
 
-### User
+| Method | Endpoint          | Access | Description |
+|--------|-------------------|--------|-------------|
+| GET    | `/flights`        | public | Optional filters: `from`, `to`, `date`, or a range with `date_from` and `date_to`. Sorted by date |
+| GET    | `/flights/<code>` | public | Availability and prices. Admins also see the passenger list |
+| POST   | `/flights`        | admin  | Body: `departure_airport`, `destination_airport`, `flight_date`, `tickets` (see below) |
+| PATCH  | `/flights/<code>` | admin  | Change prices, for example `{"tickets": {"economy": {"price": 420}}}` |
+| DELETE | `/flights/<code>` | admin  | Refused with 409 while the flight has reservations |
 
-| Method | Endpoint                     | Description                                                          |
-|--------|------------------------------|----------------------------------------------------------------------|
-| POST   | `/makeReservation`           | `flight_code`, `first_name`, `last_name`, `passport_number`, `date_of_birth`, `email`, `ticket_class` (`business`/`economy`); returns a reservation code |
-| GET    | `/displayReservations`       | Your reservations                                                    |
-| GET    | `/displayReservationDetails` | `reservation_code`                                                   |
-| DELETE | `/cancelReservation`         | `reservation_code`; the ticket becomes available again               |
-| DELETE | `/deleteAccount`             | Deletes your account and cancels your reservations                   |
+`tickets` has one entry per class:
 
-### Admin & user
+```json
+{"business": {"available": 50, "price": 800}, "economy": {"available": 100, "price": 400}}
+```
 
-| Method | Endpoint         | Description                                                                 |
-|--------|------------------|-----------------------------------------------------------------------------|
-| GET    | `/searchFlight`  | `query_type` = `all`, `by_date` (`flight_date`), `by_airports` (`departure_airport`, `destination_airport`) or `by_airports_and_date` |
-| GET    | `/flightDetails` | `flight_code`; availability, prices and passenger list                     |
+### Reservations
 
----
+| Method | Endpoint               | Access | Description |
+|--------|------------------------|--------|-------------|
+| POST   | `/reservations`        | user   | Body: `flight_code`, `ticket_class` (`business` or `economy`), `passenger` (`first_name`, `last_name`, `passport_number`, `date_of_birth`, `email`) |
+| GET    | `/reservations`        | user   | Your reservations |
+| GET    | `/reservations/<code>` | user   | One of your reservations, with its flight |
+| DELETE | `/reservations/<code>` | user   | Cancels it, and the ticket becomes available again |
 
-## Screenshots
+Each booking gets its own 6-character reservation code and records the price paid. Users only ever see their own reservations. Seats are taken with a single atomic update, so a class can't be overbooked.
 
-> These screenshots are from the original version of the project, so some response formats differ slightly from the current API.
+## Configuration
 
-1. When opening the application, you will land on the Home Page. From there, you can either register as a user or log in.
+| Variable         | Default (docker-compose)  | Description |
+|------------------|---------------------------|-------------|
+| `MONGO_URI`      | `mongodb://mongodb:27017` | MongoDB connection string |
+| `MONGO_DB`       | `DigitalAirlines`         | Database name |
+| `SECRET_KEY`     | `change-me-in-production` | Flask session signing key |
+| `ADMIN_PASSWORD` | `admin1234`               | Password for the seeded admin account, applied on every start |
 
-2. After login
-   
-### Admin
+In Docker, the API runs under gunicorn as a non-root user. MongoDB isn't published to the host, so only the API container can reach it.
 
-- Admin Home
+## Development
 
-![image](https://github.com/nenikolaidis/YpoxreotikiErgasia23_e20113_Nikolaidis_Nearchos/assets/129533209/e44231c1-d47b-410e-a7d8-f6a076794fe0)
+Requires Python 3.10+ and MongoDB on `localhost:27017`.
 
-- Create Flight
+```bash
+cd api
+python -m venv .venv && source .venv/bin/activate
+pip install -r requirements-dev.txt
 
-![image](https://github.com/nenikolaidis/YpoxreotikiErgasia23_e20113_Nikolaidis_Nearchos/assets/129533209/fd1bb2f2-5580-412e-ae73-450eba72da9f)
+flask --app airline run --debug   # http://localhost:5000
+pytest                            # each test uses its own throwaway database
+ruff check . && ruff format --check .
+```
 
-- Update Ticket Price
+Point the tests at another MongoDB with `TEST_MONGO_URI`.
 
-![image](https://github.com/nenikolaidis/YpoxreotikiErgasia23_e20113_Nikolaidis_Nearchos/assets/129533209/dc021bcd-c7d8-452a-ac5b-d4b235f28963)
+### Project layout
 
-- Delete Flight
-
-![image](https://github.com/nenikolaidis/YpoxreotikiErgasia23_e20113_Nikolaidis_Nearchos/assets/129533209/1f4ec61a-2c3e-4fcc-99dd-03405c830eb5)
-
-3. After User Registration
-
-![image](https://github.com/nenikolaidis/YpoxreotikiErgasia23_e20113_Nikolaidis_Nearchos/assets/129533209/cc9de386-c76f-45be-a3c8-7093733bd68c)
-
-
-### Regular user
-
-- Simple User Home
-
-![image](https://github.com/nenikolaidis/YpoxreotikiErgasia23_e20113_Nikolaidis_Nearchos/assets/129533209/51650538-9902-4f79-8cec-0c58055759c0)
-
-- Make Reservation
-
-![image](https://github.com/nenikolaidis/YpoxreotikiErgasia23_e20113_Nikolaidis_Nearchos/assets/129533209/db6ca3e8-1365-4744-9ce3-24a41b800830)
-
-- Display Reservations
-
-![image](https://github.com/nenikolaidis/YpoxreotikiErgasia23_e20113_Nikolaidis_Nearchos/assets/129533209/9a2b5bb1-893c-43fe-a37f-cbd3781cfb60)
-
--  Display Reservation Details
-  
-![image](https://github.com/nenikolaidis/YpoxreotikiErgasia23_e20113_Nikolaidis_Nearchos/assets/129533209/b6bceb3a-eafe-488a-abd4-d93e004ab7f1)
-
--  Cancel Reservation
-
-![image](https://github.com/nenikolaidis/YpoxreotikiErgasia23_e20113_Nikolaidis_Nearchos/assets/129533209/5daab495-02a1-429f-b234-8aa6ce27aefb)
-
--  Delete Account
-
-![image](https://github.com/nenikolaidis/YpoxreotikiErgasia23_e20113_Nikolaidis_Nearchos/assets/129533209/6d1ba60a-c860-4567-a909-4b80debbc300)
-
-
-4. Common procedures for both users
-
-- Search Flight
-
-all
-
-![image](https://github.com/nenikolaidis/YpoxreotikiErgasia23_e20113_Nikolaidis_Nearchos/assets/129533209/389b50ab-5455-4d50-99e4-0c9ed0659165)
-
-by_date
-
-![image](https://github.com/nenikolaidis/YpoxreotikiErgasia23_e20113_Nikolaidis_Nearchos/assets/129533209/8c144151-99d8-456f-bc5e-cee5199cd5c2)
-
--Flight Details
-
-![image](https://github.com/nenikolaidis/YpoxreotikiErgasia23_e20113_Nikolaidis_Nearchos/assets/129533209/753c5dd4-3024-40ef-ab46-bafc6d6be7e6)
-
-- Logout
-
-![image](https://github.com/nenikolaidis/YpoxreotikiErgasia23_e20113_Nikolaidis_Nearchos/assets/129533209/b09e41b0-8fb0-4728-9e8d-43df57fa9dd8)
-
-
-  
+```
+api/
+├── airline/
+│   ├── __init__.py      # create_app(): config, MongoDB, blueprints, seeding
+│   ├── auth.py          # register, login, logout, /me
+│   ├── flights.py       # flight search and admin management
+│   ├── reservations.py  # booking and cancelling
+│   ├── access.py        # @login_required(role=...)
+│   ├── validation.py    # request parsing and validation helpers
+│   ├── errors.py        # JSON error responses
+│   ├── db.py            # collection accessors and unique code generation
+│   └── seed.py          # indexes and demo data
+├── tests/
+├── wsgi.py              # gunicorn entry point
+└── Dockerfile
+```

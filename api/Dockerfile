@@ -14,4 +14,4 @@ USER appuser
 EXPOSE 5000
 
 # One worker process so seeding runs once; threads handle concurrent requests
-CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--workers", "1", "--threads", "4", "app:app"]
+CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--workers", "1", "--threads", "4", "wsgi:app"]
