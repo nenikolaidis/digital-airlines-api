@@ -11,8 +11,8 @@ A REST API for a small airline booking system, built with **Flask** and **MongoD
 ## Quick start
 
 ```bash
-git clone https://github.com/nenikolaidis/Airline-App.git
-cd Airline-App
+git clone https://github.com/nenikolaidis/digital-airlines-api.git
+cd digital-airlines-api
 docker compose up --build
 ```
 
