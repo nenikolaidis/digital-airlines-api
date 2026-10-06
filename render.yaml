@@ -1,5 +1,6 @@
 # Render Blueprint: https://render.com/docs/blueprint-spec
-# Deploys the API from api/Dockerfile. MongoDB is hosted separately (e.g. a free MongoDB Atlas cluster).
+# Deploys the API from api/Dockerfile and the React frontend from web/ as a static site.
+# MongoDB is hosted separately (e.g. a free MongoDB Atlas cluster).
 services:
   - type: web
     name: digital-airlines-api
@@ -9,6 +10,10 @@ services:
     dockerContext: ./api
     healthCheckPath: /flights
     autoDeploy: true
+    # Only rebuild the API when its own files change
+    buildFilter:
+      paths:
+        - api/**
     envVars:
       # mongodb+srv://... connection string from MongoDB Atlas, entered in the Render dashboard
       - key: MONGO_URI
@@ -22,3 +27,26 @@ services:
       # Render sits behind Cloudflare, which sets this header to the real client IP; used for rate limits
       - key: CLIENT_IP_HEADER
         value: CF-Connecting-IP
+      # The frontend below, which calls the API from the browser
+      - key: CORS_ORIGINS
+        value: https://digital-airlines-web.onrender.com
+
+  - type: web
+    name: digital-airlines-web
+    runtime: static
+    autoDeploy: true
+    buildCommand: cd web && npm ci && npm run build
+    staticPublishPath: ./web/dist
+    buildFilter:
+      paths:
+        - web/**
+    # Send every path to the React app, so links like /login work on reload
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    envVars:
+      - key: VITE_API_URL
+        value: https://digital-airlines-api.onrender.com
+      - key: NODE_VERSION
+        value: "24"
