@@ -19,7 +19,7 @@ def public_user(user):
 
 
 @bp.post("/auth/register")
-@limiter.limit(register_limit)
+@limiter.limit(register_limit, methods=["POST"])
 def register():
     data = json_body()
     user = require_text(data, "name", "surname", "email", "password", "date_of_birth", "country_of_origin", "passport_number")
@@ -38,7 +38,7 @@ def register():
 
 
 @bp.post("/auth/login")
-@limiter.limit(login_limit)
+@limiter.limit(login_limit, methods=["POST"])
 def login():
     data = json_body()
     email = data.get("email").strip().lower() if isinstance(data.get("email"), str) else None

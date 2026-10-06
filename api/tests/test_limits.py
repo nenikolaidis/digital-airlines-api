@@ -65,3 +65,36 @@ def test_configured_client_ip_header_identifies_the_client():
         assert login(client, ip="172.16.0.1", headers={"CF-Connecting-IP": "203.0.113.8"}).status_code == 200
     finally:
         cleanup()
+
+
+def test_cors_is_off_unless_origins_are_configured(app, anon):
+    response = anon.get("/flights", headers={"Origin": "https://example.com"})
+    assert "Access-Control-Allow-Origin" not in response.headers
+
+
+def test_cors_allows_only_configured_origins():
+    app, cleanup = make_app(RATELIMIT_ENABLED=True, LOGIN_RATE_LIMIT="1 per minute", CORS_ORIGINS=["https://app.example.com"])
+    try:
+        client = app.test_client()
+        preflight = client.options(
+            "/auth/login",
+            headers={
+                "Origin": "https://app.example.com",
+                "Access-Control-Request-Method": "POST",
+                "Access-Control-Request-Headers": "content-type",
+            },
+        )
+        assert preflight.headers["Access-Control-Allow-Origin"] == "https://app.example.com"
+
+        # The preflight didn't use up the single allowed login, and error responses carry CORS headers too
+        response = client.post("/auth/login", json=DEMO_LOGIN, headers={"Origin": "https://app.example.com"})
+        assert response.status_code == 200
+        blocked = client.post("/auth/login", json=DEMO_LOGIN, headers={"Origin": "https://app.example.com"})
+        assert blocked.status_code == 429
+        assert blocked.headers["Access-Control-Allow-Origin"] == "https://app.example.com"
+        assert "Retry-After" in blocked.headers["Access-Control-Expose-Headers"]
+
+        other = client.get("/flights", headers={"Origin": "https://evil.example.com"})
+        assert "Access-Control-Allow-Origin" not in other.headers
+    finally:
+        cleanup()

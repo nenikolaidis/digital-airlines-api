@@ -5,6 +5,7 @@ import secrets
 from datetime import timedelta
 
 from flask import Flask, jsonify
+from flask_cors import CORS
 from pymongo import MongoClient
 
 from . import auth, docs, errors, flights, reservations
@@ -31,6 +32,8 @@ def create_app(config=None):
         LOGIN_RATE_LIMIT="10 per minute;50 per hour",
         REGISTER_RATE_LIMIT="5 per hour",
         CLIENT_IP_HEADER=os.environ.get("CLIENT_IP_HEADER"),
+        # Websites allowed to call the API from a browser, e.g. the deployed frontend
+        CORS_ORIGINS=[origin.strip() for origin in os.environ.get("CORS_ORIGINS", "").split(",") if origin.strip()],
     )
     if config:
         app.config.update(config)
@@ -40,6 +43,14 @@ def create_app(config=None):
     app.extensions["db"] = client[app.config["MONGO_DB"]]
 
     limiter.init_app(app)
+    if app.config["CORS_ORIGINS"]:
+        CORS(
+            app,
+            origins=app.config["CORS_ORIGINS"],
+            allow_headers=["Authorization", "Content-Type"],
+            expose_headers=["Location", "Retry-After"],
+            max_age=600,
+        )
     errors.register(app)
     app.register_blueprint(auth.bp)
     app.register_blueprint(flights.bp)

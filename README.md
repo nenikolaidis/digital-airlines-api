@@ -123,9 +123,26 @@ Each booking gets its own 6-character reservation code and records the price pai
 | `CLIENT_IP_HEADER` | unset                   | Header set by a trusted proxy with the real client IP, for rate limits (`CF-Connecting-IP` on Render). Leave unset when clients connect directly, or they could fake it |
 | `RATELIMIT_ENABLED` | `true`                 | Set to `false` to turn rate limiting off |
 | `RATELIMIT_STORAGE_URI` | `memory://`        | Where request counts are kept; use Redis (`redis://...`) when running several workers |
+| `CORS_ORIGINS`   | unset                     | Comma-separated websites allowed to call the API from a browser, e.g. the deployed frontend |
 | `PORT`           | `5000`                    | Port gunicorn listens on inside the container |
 
 In Docker, the API runs under gunicorn as a non-root user. MongoDB isn't published to the host, so only the API container can reach it.
+
+## Frontend
+
+A React + TypeScript app in [`web/`](web/), built with Vite, lets you search flights, log in and register in the browser.
+
+```bash
+# terminal 1: the API (see Development below), on port 5000
+# terminal 2:
+cd web
+npm install
+npm run dev          # http://localhost:5173
+```
+
+In development, Vite forwards `/api/...` to the API on `http://127.0.0.1:5000`, so no CORS setup is needed. If your API runs on another port, for example because macOS uses 5000 for AirPlay, start it with `API_PROXY_TARGET=http://127.0.0.1:5001 npm run dev`.
+
+`npm run build` type-checks and builds the production files into `web/dist`, and `npm run lint` runs oxlint.
 
 ## Deployment
 
