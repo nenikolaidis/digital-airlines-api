@@ -25,6 +25,7 @@ export default function Layout() {
           <NavLink to="/" end>
             Flights
           </NavLink>
+          {user?.role === 'user' && <NavLink to="/trips">My trips</NavLink>}
         </nav>
         <div className="account">
           {user ? (

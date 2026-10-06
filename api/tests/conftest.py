@@ -5,12 +5,19 @@ from datetime import date, timedelta
 import pytest
 
 from airline import create_app
+from airline.seed import SAMPLE_FLIGHTS
 
 MONGO_URI = os.environ.get("TEST_MONGO_URI", "mongodb://localhost:27017")
 
 
 def days_from_now(days):
     return (date.today() + timedelta(days=days)).isoformat()
+
+
+def sample_codes(matches=lambda flight: True):
+    """Codes of the seeded sample flights that match, in the API's order (by date, then code)."""
+    flights = sorted((days, code) for code, departure, destination, days, *_ in SAMPLE_FLIGHTS if matches((departure, destination, days)))
+    return [code for _, code in flights]
 
 
 def make_app(**config):

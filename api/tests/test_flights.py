@@ -1,24 +1,25 @@
-from conftest import days_from_now
+from conftest import days_from_now, sample_codes
 
 
 def test_search_is_public_and_sorted_by_date(anon):
-    response = anon.get("/flights")
+    response = anon.get("/flights?per_page=100")
     assert response.status_code == 200
     data = response.get_json()
-    assert data["count"] == 3
-    dates = [flight["flight_date"] for flight in data["flights"]]
-    assert dates == sorted(dates)
-    assert all(day > days_from_now(0) for day in dates)
+    assert data["total"] == len(sample_codes())
+    assert [flight["code"] for flight in data["flights"]] == sample_codes()
+    assert all(flight["flight_date"] > days_from_now(0) for flight in data["flights"])
 
 
 def test_search_filters_are_case_insensitive(anon):
     flights = anon.get("/flights?from=new york&to=LONDON").get_json()["flights"]
-    assert [flight["code"] for flight in flights] == ["ABC123"]
+    assert [flight["code"] for flight in flights] == sample_codes(lambda f: f[:2] == ("New York", "London"))
 
 
 def test_search_by_date_and_range(anon):
-    assert anon.get(f"/flights?date={days_from_now(45)}").get_json()["count"] == 1
-    assert anon.get(f"/flights?date_from={days_from_now(40)}&date_to={days_from_now(70)}").get_json()["count"] == 2
+    on_day_45 = anon.get(f"/flights?date={days_from_now(45)}").get_json()["flights"]
+    assert [f["code"] for f in on_day_45] == sample_codes(lambda f: f[2] == 45)
+    in_range = anon.get(f"/flights?date_from={days_from_now(40)}&date_to={days_from_now(70)}&per_page=100").get_json()
+    assert [f["code"] for f in in_range["flights"]] == sample_codes(lambda f: 40 <= f[2] <= 70)
     response = anon.get("/flights?date=05-07-2026")
     assert response.status_code == 400
     assert "YYYY-MM-DD" in response.get_json()["error"]
@@ -109,26 +110,27 @@ def test_restart_moves_departed_sample_flights_forward(app, anon, restart):
 
 
 def test_search_is_paginated(anon):
-    first = anon.get("/flights?per_page=2").get_json()
+    total = len(sample_codes())
+    first = anon.get("/flights?per_page=12").get_json()
     assert {k: first[k] for k in ("page", "per_page", "total", "pages", "count")} == {
         "page": 1,
-        "per_page": 2,
-        "total": 3,
-        "pages": 2,
-        "count": 2,
+        "per_page": 12,
+        "total": total,
+        "pages": -(-total // 12),
+        "count": 12,
     }
-    second = anon.get("/flights?per_page=2&page=2").get_json()
-    assert second["count"] == 1
-    codes = [f["code"] for f in first["flights"] + second["flights"]]
-    assert codes == ["ABC123", "DEF456", "GHI789"]
+    pages = [anon.get(f"/flights?per_page=12&page={page}").get_json() for page in range(1, first["pages"] + 1)]
+    assert [f["code"] for page in pages for f in page["flights"]] == sample_codes()
+    assert pages[-1]["count"] == total - 12 * (first["pages"] - 1)
 
     # Past the last page there are no results, but it isn't an error
-    assert anon.get("/flights?per_page=2&page=3").get_json()["flights"] == []
+    assert anon.get(f"/flights?per_page=12&page={first['pages'] + 1}").get_json()["flights"] == []
 
 
 def test_pagination_counts_only_matching_flights(anon):
+    from_london = len(sample_codes(lambda f: f[0] == "London"))
     data = anon.get("/flights?from=london&per_page=1").get_json()
-    assert (data["total"], data["pages"]) == (1, 1)
+    assert (data["total"], data["pages"]) == (from_london, from_london)
 
 
 def test_pagination_validation(anon):

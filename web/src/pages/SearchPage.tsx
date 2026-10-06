@@ -1,9 +1,10 @@
 import { useEffect, useState, type FormEvent } from 'react'
-import { useSearchParams } from 'react-router'
+import { Link, useSearchParams } from 'react-router'
 import { searchFlights } from '../api'
+import { useAuth } from '../authContext'
 import FlightCard from '../components/FlightCard'
 import { useSlowNotice } from '../format'
-import type { Flight, PageInfo } from '../types'
+import type { Flight, PageInfo, TicketClass } from '../types'
 
 const PER_PAGE = 10
 
@@ -23,6 +24,7 @@ export default function SearchPage() {
   const date = params.get('date') ?? ''
   const page = Number(params.get('page') ?? '1') || 1
 
+  const { user } = useAuth()
   const [form, setForm] = useState({ from, to, date })
   const [outcome, setOutcome] = useState<Outcome | null>(null)
 
@@ -47,6 +49,23 @@ export default function SearchPage() {
     const next = new URLSearchParams()
     for (const [key, value] of Object.entries(form)) if (value.trim()) next.set(key, value.trim())
     setParams(next)
+  }
+
+  // Admins manage flights but can't book them, so they don't get booking buttons
+  function bookButton(flight: Flight, ticketClass: TicketClass) {
+    if (user?.role === 'admin') return null
+    if (!flight.tickets[ticketClass].available) {
+      return (
+        <button type="button" className="button button-small" disabled>
+          Select
+        </button>
+      )
+    }
+    return (
+      <Link to={`/book/${flight.code}?class=${ticketClass}`} className="button button-small">
+        Select
+      </Link>
+    )
   }
 
   function goToPage(nextPage: number) {
@@ -94,7 +113,7 @@ export default function SearchPage() {
             </p>
             <div className="list">
               {results.flights.map((flight) => (
-                <FlightCard key={flight.code} flight={flight} />
+                <FlightCard key={flight.code} flight={flight} renderAction={(ticketClass) => bookButton(flight, ticketClass)} />
               ))}
             </div>
             {results.pages > 1 && (

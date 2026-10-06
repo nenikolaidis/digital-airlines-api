@@ -237,7 +237,7 @@ SCHEMAS = {
             "booked_at": {"type": "string", "format": "date-time"},
             "passenger": ref("Passenger"),
             "flight": {
-                "description": "Included when creating or fetching a single reservation",
+                "description": "Route and date of the booked flight",
                 "type": "object",
                 "properties": {
                     "departure_airport": {"type": "string"},

@@ -2,6 +2,8 @@ from datetime import timedelta
 
 from conftest import logged_in
 
+from airline.seed import SAMPLE_FLIGHTS
+
 
 def register_payload(**overrides):
     payload = {
@@ -156,4 +158,4 @@ def test_restart_does_not_duplicate_seed_data(app, restart):
         from airline import db
 
         assert db.users().count_documents({}) == 2
-        assert db.flights().count_documents({}) == 3
+        assert db.flights().count_documents({}) == len(SAMPLE_FLIGHTS)

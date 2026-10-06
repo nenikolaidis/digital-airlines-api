@@ -58,6 +58,10 @@ export function searchFlights(search: FlightSearch) {
   return request<PageInfo & { flights: Flight[] }>(`/flights?${params}`)
 }
 
+export function getFlight(code: string) {
+  return request<{ flight: Flight }>(`/flights/${encodeURIComponent(code)}`)
+}
+
 export function login(email: string, password: string) {
   return request<LoginResponse>('/auth/login', { method: 'POST', body: { email, password } })
 }

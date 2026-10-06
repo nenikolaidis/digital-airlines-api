@@ -31,7 +31,7 @@ The API runs at <http://localhost:5000>.
 
 ### Demo accounts
 
-On first start, the database is seeded with two accounts and three sample flights dated 30, 45 and 60 days ahead. Sample flights that have departed are moved forward again on the next start, so a long-running demo always has bookable flights.
+On first start, the database is seeded with two accounts and 30 sample flights (mostly European routes plus some long-haul ones) dated 2 to 85 days ahead, a few of them with sold-out classes. Sample flights that have departed are moved forward again on the next start, so a long-running demo always has bookable flights.
 
 | Role  | Email                  | Password                           |
 |-------|------------------------|------------------------------------|
@@ -130,7 +130,7 @@ In Docker, the API runs under gunicorn as a non-root user. MongoDB isn't publish
 
 ## Frontend
 
-A React + TypeScript app in [`web/`](web/), built with Vite, lets you search flights, log in and register in the browser.
+A React + TypeScript app in [`web/`](web/), built with Vite: search flights, sign up or log in, book a seat and manage your bookings under **My trips**.
 
 ```bash
 # terminal 1: the API (see Development below), on port 5000

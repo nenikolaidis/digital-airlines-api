@@ -95,8 +95,13 @@ def create_reservation():
 @login_required(role="user")
 def list_reservations():
     query = {"user_email": g.user["email"]}
-    meta, reservations = paginate(db.reservations(), query, [("booked_at", 1), ("_id", 1)], reservation_view)
-    return jsonify(**meta, reservations=reservations)
+    meta, reservations = paginate(db.reservations(), query, [("booked_at", 1), ("_id", 1)], lambda reservation: reservation)
+
+    # Fetch the flights of the whole page in one query instead of one per reservation
+    codes = {reservation["flight_code"] for reservation in reservations}
+    flights = {flight["code"]: flight for flight in db.flights().find({"code": {"$in": list(codes)}})}
+    results = [reservation_view(reservation, flights.get(reservation["flight_code"])) for reservation in reservations]
+    return jsonify(**meta, reservations=results)
 
 
 @bp.get("/<code>")

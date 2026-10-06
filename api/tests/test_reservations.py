@@ -24,6 +24,7 @@ def test_book_and_view_reservation(user, anon, passenger):
     listing = user.get("/reservations").get_json()
     assert listing["count"] == 1
     assert listing["reservations"][0]["reservation_code"] == code
+    assert listing["reservations"][0]["flight"]["destination_airport"] == "London"
 
 
 def test_empty_reservation_list_is_not_an_error(user):
