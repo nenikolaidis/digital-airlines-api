@@ -2,6 +2,7 @@
 
 import re
 
+from .pagination import DEFAULT_PER_PAGE, MAX_PER_PAGE
 from .validation import TICKET_CLASSES
 
 
@@ -45,6 +46,30 @@ def code_param(description):
 
 
 BEARER = [{"bearerAuth": []}]
+
+PAGE_PARAMETERS = [
+    {"name": "page", "in": "query", "description": "Page number", "schema": {"type": "integer", "minimum": 1, "default": 1}},
+    {
+        "name": "per_page",
+        "in": "query",
+        "description": "Results per page",
+        "schema": {"type": "integer", "minimum": 1, "maximum": MAX_PER_PAGE, "default": DEFAULT_PER_PAGE},
+    },
+]
+
+
+def page_of(field, item_schema):
+    return {
+        "type": "object",
+        "properties": {
+            "page": {"type": "integer", "example": 1},
+            "per_page": {"type": "integer", "example": DEFAULT_PER_PAGE},
+            "total": {"type": "integer", "description": "Results across all pages"},
+            "pages": {"type": "integer"},
+            "count": {"type": "integer", "description": "Results on this page"},
+            field: {"type": "array", "items": item_schema},
+        },
+    }
 
 
 def date_query(name, description):
@@ -276,11 +301,12 @@ PATHS = {
                 date_query("date", "Exact flight date"),
                 date_query("date_from", "Earliest flight date (ignored when date is set)"),
                 date_query("date_to", "Latest flight date (ignored when date is set)"),
+                *PAGE_PARAMETERS,
             ],
             "responses": {
                 **ok(
                     "Matching flights, sorted by date",
-                    {"type": "object", "properties": {"count": {"type": "integer"}, "flights": {"type": "array", "items": ref("Flight")}}},
+                    page_of("flights", ref("Flight")),
                 ),
                 **errors("400"),
             },
@@ -334,13 +360,11 @@ PATHS = {
             "summary": "Your reservations",
             "security": BEARER,
             "description": "Requires a user login.",
+            "parameters": PAGE_PARAMETERS,
             "responses": {
                 **ok(
                     "Your reservations, oldest first",
-                    {
-                        "type": "object",
-                        "properties": {"count": {"type": "integer"}, "reservations": {"type": "array", "items": ref("Reservation")}},
-                    },
+                    page_of("reservations", ref("Reservation")),
                 ),
                 **errors("401", "403"),
             },

@@ -6,6 +6,7 @@ from pymongo.collation import Collation
 from . import db
 from .access import login_required, optional_user
 from .errors import APIError
+from .pagination import paginate
 from .validation import TICKET_CLASSES, json_body, parse_date, parse_number, require_text
 
 bp = Blueprint("flights", __name__, url_prefix="/flights")
@@ -66,9 +67,8 @@ def list_flights():
             query["flight_date"] = date_range
 
     # Dates are stored as YYYY-MM-DD strings, so sorting them as text sorts them by date
-    flights = db.flights().find(query, collation=CASE_INSENSITIVE).sort([("flight_date", 1), ("code", 1)])
-    results = [flight_summary(flight) for flight in flights]
-    return jsonify(count=len(results), flights=results)
+    meta, flights = paginate(db.flights(), query, [("flight_date", 1), ("code", 1)], flight_summary, collation=CASE_INSENSITIVE)
+    return jsonify(**meta, flights=flights)
 
 
 @bp.get("/<code>")

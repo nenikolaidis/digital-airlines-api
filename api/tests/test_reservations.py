@@ -29,7 +29,7 @@ def test_book_and_view_reservation(user, anon, passenger):
 def test_empty_reservation_list_is_not_an_error(user):
     response = user.get("/reservations")
     assert response.status_code == 200
-    assert response.get_json() == {"count": 0, "reservations": []}
+    assert response.get_json() == {"page": 1, "per_page": 20, "total": 0, "pages": 0, "count": 0, "reservations": []}
 
 
 def test_cancel_releases_ticket(user, anon, passenger):
@@ -90,3 +90,13 @@ def test_users_only_see_their_own_reservations(app, user, anon, passenger):
 def test_reservations_need_a_user_login(anon, admin, passenger):
     assert anon.get("/reservations").status_code == 401
     assert book(admin, passenger).status_code == 403
+
+
+def test_reservations_are_paginated_oldest_first(user, passenger):
+    codes = [book(user, passenger).get_json()["reservation"]["reservation_code"] for _ in range(3)]
+
+    first = user.get("/reservations?per_page=2").get_json()
+    second = user.get("/reservations?per_page=2&page=2").get_json()
+    assert (first["total"], first["pages"], first["count"]) == (3, 2, 2)
+    assert second["count"] == 1
+    assert [r["reservation_code"] for r in first["reservations"] + second["reservations"]] == codes

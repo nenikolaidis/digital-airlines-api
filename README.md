@@ -69,6 +69,8 @@ curl -H "Authorization: Bearer $TOKEN" http://localhost:5000/reservations
 
 Dates use the format `YYYY-MM-DD`. Emails and airport names are case-insensitive. Errors always return a JSON body: `{"error": "..."}`.
 
+List endpoints take `?page=` and `?per_page=` (default 20, max 100) and return `page`, `per_page`, `total`, `pages` and `count` next to the results.
+
 ### Auth
 
 | Method | Endpoint         | Access    | Description |
@@ -83,7 +85,7 @@ Dates use the format `YYYY-MM-DD`. Emails and airport names are case-insensitive
 
 | Method | Endpoint          | Access | Description |
 |--------|-------------------|--------|-------------|
-| GET    | `/flights`        | public | Optional filters: `from`, `to`, `date`, or a range with `date_from` and `date_to`. Sorted by date |
+| GET    | `/flights`        | public | Optional filters: `from`, `to`, `date`, or a range with `date_from` and `date_to`. Sorted by date and paginated |
 | GET    | `/flights/<code>` | public | Availability and prices. Admins also see the passenger list |
 | POST   | `/flights`        | admin  | Body: `departure_airport`, `destination_airport`, `flight_date`, `tickets` (see below) |
 | PATCH  | `/flights/<code>` | admin  | Change prices, for example `{"tickets": {"economy": {"price": 420}}}` |
@@ -100,7 +102,7 @@ Dates use the format `YYYY-MM-DD`. Emails and airport names are case-insensitive
 | Method | Endpoint               | Access | Description |
 |--------|------------------------|--------|-------------|
 | POST   | `/reservations`        | user   | Body: `flight_code`, `ticket_class` (`business` or `economy`), `passenger` (`first_name`, `last_name`, `passport_number`, `date_of_birth`, `email`) |
-| GET    | `/reservations`        | user   | Your reservations |
+| GET    | `/reservations`        | user   | Your reservations, oldest first and paginated |
 | GET    | `/reservations/<code>` | user   | One of your reservations, with its flight |
 | DELETE | `/reservations/<code>` | user   | Cancels it, and the ticket becomes available again |
 
@@ -157,6 +159,7 @@ api/
 │   ├── access.py        # access tokens (JWT) and @login_required(role=...)
 │   ├── validation.py    # request parsing and validation helpers
 │   ├── errors.py        # JSON error responses
+│   ├── pagination.py    # ?page= and ?per_page= for list endpoints
 │   ├── openapi.py       # OpenAPI spec (a test checks it matches the routes)
 │   ├── docs.py          # /docs (Swagger UI) and /openapi.json
 │   ├── db.py            # collection accessors and unique code generation

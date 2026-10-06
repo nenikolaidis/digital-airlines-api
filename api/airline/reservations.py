@@ -6,6 +6,7 @@ from . import db
 from .access import login_required
 from .errors import APIError
 from .flights import get_flight_or_404
+from .pagination import paginate
 from .validation import json_body, normalize_email, parse_past_date, parse_ticket_class, require_text
 
 bp = Blueprint("reservations", __name__, url_prefix="/reservations")
@@ -93,9 +94,9 @@ def create_reservation():
 @bp.get("")
 @login_required(role="user")
 def list_reservations():
-    reservations = db.reservations().find({"user_email": g.user["email"]}).sort("booked_at", 1)
-    results = [reservation_view(reservation) for reservation in reservations]
-    return jsonify(count=len(results), reservations=results)
+    query = {"user_email": g.user["email"]}
+    meta, reservations = paginate(db.reservations(), query, [("booked_at", 1), ("_id", 1)], reservation_view)
+    return jsonify(**meta, reservations=reservations)
 
 
 @bp.get("/<code>")

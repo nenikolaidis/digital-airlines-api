@@ -106,3 +106,33 @@ def test_restart_moves_departed_sample_flights_forward(app, anon):
     assert anon.get("/flights/ABC123").get_json()["flight"]["flight_date"] == days_from_now(30)
     # Sample flights that haven't departed keep their date
     assert anon.get("/flights/GHI789").get_json()["flight"]["flight_date"] == days_from_now(60)
+
+
+def test_search_is_paginated(anon):
+    first = anon.get("/flights?per_page=2").get_json()
+    assert {k: first[k] for k in ("page", "per_page", "total", "pages", "count")} == {
+        "page": 1,
+        "per_page": 2,
+        "total": 3,
+        "pages": 2,
+        "count": 2,
+    }
+    second = anon.get("/flights?per_page=2&page=2").get_json()
+    assert second["count"] == 1
+    codes = [f["code"] for f in first["flights"] + second["flights"]]
+    assert codes == ["ABC123", "DEF456", "GHI789"]
+
+    # Past the last page there are no results, but it isn't an error
+    assert anon.get("/flights?per_page=2&page=3").get_json()["flights"] == []
+
+
+def test_pagination_counts_only_matching_flights(anon):
+    data = anon.get("/flights?from=london&per_page=1").get_json()
+    assert (data["total"], data["pages"]) == (1, 1)
+
+
+def test_pagination_validation(anon):
+    for query in ("page=0", "page=-1", "page=abc", "per_page=0", "per_page=101", "per_page=2.5"):
+        response = anon.get(f"/flights?{query}")
+        assert response.status_code == 400, query
+        assert query.split("=")[0] in response.get_json()["error"]
