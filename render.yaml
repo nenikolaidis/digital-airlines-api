@@ -19,3 +19,6 @@ services:
       # Signs the access tokens
       - key: SECRET_KEY
         generateValue: true
+      # Render sits behind Cloudflare, which sets this header to the real client IP; used for rate limits
+      - key: CLIENT_IP_HEADER
+        value: CF-Connecting-IP

@@ -13,6 +13,7 @@ It started as a university project for the **University of Piraeus** and has sin
 - Python 3.12, Flask 3, gunicorn
 - MongoDB 7 (via PyMongo)
 - OpenAPI 3.1 spec with Swagger UI
+- Flask-Limiter for rate limiting
 - pytest and ruff, run by GitHub Actions
 - Docker and Docker Compose
 
@@ -106,6 +107,8 @@ List endpoints take `?page=` and `?per_page=` (default 20, max 100) and return `
 | GET    | `/reservations/<code>` | user   | One of your reservations, with its flight |
 | DELETE | `/reservations/<code>` | user   | Cancels it, and the ticket becomes available again |
 
+Login is limited to 10 attempts per minute and 50 per hour per IP address, and registration to 5 per hour; every endpoint allows 200 requests per minute. Going over returns `429` with a `Retry-After` header.
+
 Each booking gets its own 6-character reservation code and records the price paid. Users only ever see their own reservations. Seats are taken with a single atomic update, so a class can't be overbooked.
 
 ## Configuration
@@ -117,6 +120,9 @@ Each booking gets its own 6-character reservation code and records the price pai
 | `SECRET_KEY`     | a local development value | Signs the access tokens. Use a random value of 32+ characters in production |
 | `ADMIN_PASSWORD` | `admin1234`               | Password for the seeded admin account, applied on every start |
 | `TOKEN_LIFETIME_MINUTES` | `60`             | How long an access token stays valid |
+| `CLIENT_IP_HEADER` | unset                   | Header set by a trusted proxy with the real client IP, for rate limits (`CF-Connecting-IP` on Render). Leave unset when clients connect directly, or they could fake it |
+| `RATELIMIT_ENABLED` | `true`                 | Set to `false` to turn rate limiting off |
+| `RATELIMIT_STORAGE_URI` | `memory://`        | Where request counts are kept; use Redis (`redis://...`) when running several workers |
 | `PORT`           | `5000`                    | Port gunicorn listens on inside the container |
 
 In Docker, the API runs under gunicorn as a non-root user. MongoDB isn't published to the host, so only the API container can reach it.
@@ -160,6 +166,7 @@ api/
 │   ├── validation.py    # request parsing and validation helpers
 │   ├── errors.py        # JSON error responses
 │   ├── pagination.py    # ?page= and ?per_page= for list endpoints
+│   ├── limits.py        # rate limiting (Flask-Limiter) and client IP detection
 │   ├── openapi.py       # OpenAPI spec (a test checks it matches the routes)
 │   ├── docs.py          # /docs (Swagger UI) and /openapi.json
 │   ├── db.py            # collection accessors and unique code generation

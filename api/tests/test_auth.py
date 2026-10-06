@@ -102,10 +102,8 @@ def test_expired_token_is_401(app):
     assert "expired" in response.get_json()["error"]
 
 
-def test_token_from_another_secret_key_is_rejected(app, anon):
-    from airline import create_app
-
-    other = create_app({**app.config, "SECRET_KEY": "a-different-secret-key-of-32-bytes-or-more"})
+def test_token_from_another_secret_key_is_rejected(anon, restart):
+    other = restart(SECRET_KEY="a-different-secret-key-of-32-bytes-or-more")
     token = logged_in(other, "nearchos@example.com", "user1234").environ_base["HTTP_AUTHORIZATION"]
     assert anon.get("/me", headers={"Authorization": token}).status_code == 401
 
@@ -145,19 +143,15 @@ def test_admin_cannot_delete_own_account(admin):
     assert admin.delete("/me").status_code == 403
 
 
-def test_admin_password_from_config_applies_to_existing_database(app):
-    from airline import create_app
-
-    restarted = create_app({**app.config, "ADMIN_PASSWORD": "changed-pass"})
+def test_admin_password_from_config_applies_to_existing_database(restart):
+    restarted = restart(ADMIN_PASSWORD="changed-pass")
     client = restarted.test_client()
     assert client.post("/auth/login", json={"email": "admin@example.com", "password": "changed-pass"}).status_code == 200
     assert client.post("/auth/login", json={"email": "admin@example.com", "password": "admin1234"}).status_code == 401
 
 
-def test_restart_does_not_duplicate_seed_data(app):
-    from airline import create_app
-
-    create_app(dict(app.config))
+def test_restart_does_not_duplicate_seed_data(app, restart):
+    restart()
     with app.app_context():
         from airline import db
 

@@ -4,6 +4,7 @@ from werkzeug.security import check_password_hash, generate_password_hash
 from . import db
 from .access import create_token, login_required
 from .errors import APIError
+from .limits import limiter, login_limit, register_limit
 from .reservations import cancel_reservation
 from .validation import json_body, normalize_email, parse_past_date, require_text
 
@@ -18,6 +19,7 @@ def public_user(user):
 
 
 @bp.post("/auth/register")
+@limiter.limit(register_limit)
 def register():
     data = json_body()
     user = require_text(data, "name", "surname", "email", "password", "date_of_birth", "country_of_origin", "passport_number")
@@ -36,6 +38,7 @@ def register():
 
 
 @bp.post("/auth/login")
+@limiter.limit(login_limit)
 def login():
     data = json_body()
     email = data.get("email").strip().lower() if isinstance(data.get("email"), str) else None

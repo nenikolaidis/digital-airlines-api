@@ -33,8 +33,15 @@ def errors(*statuses):
         "403": "Logged in with the wrong role",
         "404": "Not found",
         "409": "Conflicts with the current state",
+        "429": "Too many requests from your IP address",
     }
-    return {status: {"description": descriptions[status], "content": json_content(ref("Error"))} for status in statuses}
+    return {
+        status: {
+            "description": descriptions[status],
+            "content": {"application/json": {"schema": ref("Error"), "example": {"error": descriptions[status] + "."}}},
+        }
+        for status in statuses
+    }
 
 
 def body(schema):
@@ -87,7 +94,7 @@ FLIGHT_PROPERTIES = {
 SCHEMAS = {
     "Error": {
         "type": "object",
-        "properties": {"error": {"type": "string", "example": "Flight ABC999 not found."}},
+        "properties": {"error": {"type": "string"}},
         "required": ["error"],
     },
     "Message": {"type": "object", "properties": {"message": {"type": "string"}}},
@@ -248,7 +255,8 @@ PATHS = {
             "tags": ["Auth"],
             "summary": "Create a user account",
             "requestBody": body(ref("Registration")),
-            "responses": {**ok("Account created", ref("UserResponse"), "201"), **errors("400", "409")},
+            "description": "Limited to 5 registrations per hour per IP address.",
+            "responses": {**ok("Account created", ref("UserResponse"), "201"), **errors("400", "409", "429")},
         }
     },
     "/auth/login": {
@@ -257,9 +265,10 @@ PATHS = {
             "summary": "Log in and get an access token",
             "description": "Returns a bearer token that is valid for an hour. "
             "In Swagger UI, copy `access_token`, click **Authorize** and paste it. "
-            "Demo user: `nearchos@example.com` / `user1234`.",
+            "Demo user: `nearchos@example.com` / `user1234`. "
+            "Limited to 10 attempts per minute and 50 per hour per IP address.",
             "requestBody": body(ref("Login")),
-            "responses": {**ok("Logged in", ref("LoginResponse")), **errors("400", "401")},
+            "responses": {**ok("Logged in", ref("LoginResponse")), **errors("400", "401", "429")},
         }
     },
     "/auth/logout": {

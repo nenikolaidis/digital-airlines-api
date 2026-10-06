@@ -3,7 +3,6 @@ import uuid
 from datetime import date, timedelta
 
 import pytest
-from pymongo import MongoClient
 
 from airline import create_app
 
@@ -14,9 +13,8 @@ def days_from_now(days):
     return (date.today() + timedelta(days=days)).isoformat()
 
 
-@pytest.fixture
-def app():
-    # Each test gets its own throwaway database
+def make_app(**config):
+    """App on its own throwaway database; returns it with a cleanup function."""
     db_name = f"airline_test_{uuid.uuid4().hex[:12]}"
     app = create_app(
         {
@@ -25,10 +23,39 @@ def app():
             "MONGO_DB": db_name,
             "SECRET_KEY": "test-secret-key-that-is-at-least-32-bytes",
             "ADMIN_PASSWORD": None,
+            # Most tests log in many times; tests/test_limits.py turns limits back on
+            "RATELIMIT_ENABLED": False,
+            **config,
         }
     )
+
+    def cleanup():
+        client = app.extensions["mongo_client"]
+        client.drop_database(db_name)
+        client.close()
+
+    return app, cleanup
+
+
+@pytest.fixture
+def app():
+    app, cleanup = make_app()
     yield app
-    MongoClient(MONGO_URI).drop_database(db_name)
+    cleanup()
+
+
+@pytest.fixture
+def restart(app):
+    """Starts another app on the same database, as if the server restarted with different settings."""
+    started = []
+
+    def start(**overrides):
+        started.append(create_app({**app.config, **overrides}))
+        return started[-1]
+
+    yield start
+    for other in started:
+        other.extensions["mongo_client"].close()
 
 
 @pytest.fixture
