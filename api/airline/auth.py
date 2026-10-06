@@ -1,8 +1,8 @@
-from flask import Blueprint, jsonify, session
+from flask import Blueprint, current_app, g, jsonify
 from werkzeug.security import check_password_hash, generate_password_hash
 
 from . import db
-from .access import login_required
+from .access import create_token, login_required
 from .errors import APIError
 from .reservations import cancel_reservation
 from .validation import json_body, normalize_email, parse_past_date, require_text
@@ -45,36 +45,33 @@ def login():
     if not user or not isinstance(password, str) or not check_password_hash(user["password"], password):
         raise APIError(401, "Wrong email or password.")
 
-    session.clear()
-    session["email"] = user["email"]
-    session["role"] = user["role"]
-    session.permanent = True
-    return jsonify(message="Logged in.", user=public_user(user))
+    return jsonify(
+        access_token=create_token(user),
+        token_type="Bearer",
+        expires_in=int(current_app.config["TOKEN_LIFETIME"].total_seconds()),
+        user=public_user(user),
+    )
 
 
 @bp.post("/auth/logout")
 @login_required()
 def logout():
-    session.clear()
+    # Invalidates every token issued to this user so far, not just the one used here
+    db.users().update_one({"_id": g.user["_id"]}, {"$inc": {"token_version": 1}})
     return jsonify(message="Logged out.")
 
 
 @bp.get("/me")
 @login_required()
 def profile():
-    user = db.users().find_one({"email": session["email"]})
-    if not user:
-        session.clear()
-        raise APIError(401, "Your account no longer exists.")
-    return jsonify(user=public_user(user))
+    return jsonify(user=public_user(g.user))
 
 
 @bp.delete("/me")
 @login_required(role="user")
 def delete_account():
     # Cancel the user's reservations first, so their tickets become available again
-    for reservation in db.reservations().find({"user_email": session["email"]}):
+    for reservation in db.reservations().find({"user_email": g.user["email"]}):
         cancel_reservation(reservation)
-    db.users().delete_one({"email": session["email"]})
-    session.clear()
+    db.users().delete_one({"_id": g.user["_id"]})
     return "", 204

@@ -1,8 +1,6 @@
-import re
-
 from openapi_spec_validator import validate
 
-from airline.openapi import SPEC
+from airline.openapi import SPEC, openapi_path
 
 # Routes that serve the docs themselves, rather than the API
 UNDOCUMENTED = {"/", "/docs", "/openapi.json"}
@@ -15,7 +13,7 @@ def test_spec_is_valid_openapi():
 def test_spec_matches_the_routes(app):
     routes = set()
     for rule in app.url_map.iter_rules():
-        path = re.sub(r"<(?:\w+:)?(\w+)>", r"{\1}", rule.rule)
+        path = openapi_path(rule.rule)
         if rule.endpoint == "static" or path in UNDOCUMENTED:
             continue
         routes |= {(path, method.lower()) for method in rule.methods - {"HEAD", "OPTIONS"}}

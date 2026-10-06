@@ -18,7 +18,7 @@ services:
       - 5000:5000
     environment:
       - MONGO_URI=mongodb://mongodb:27017
-      - SECRET_KEY=${SECRET_KEY:-change-me-in-production}
+      - SECRET_KEY=${SECRET_KEY:-local-development-secret-change-me-in-production}
       - ADMIN_PASSWORD=${ADMIN_PASSWORD:-admin1234}
 
 volumes:

@@ -1,6 +1,13 @@
 """OpenAPI description of the API, served at /openapi.json and rendered by Swagger UI at /docs."""
 
+import re
+
 from .validation import TICKET_CLASSES
+
+
+def openapi_path(flask_rule):
+    """/flights/<code> -> /flights/{code}"""
+    return re.sub(r"<(?:\w+:)?(\w+)>", r"{\1}", flask_rule)
 
 
 def ref(name):
@@ -35,6 +42,9 @@ def body(schema):
 
 def code_param(description):
     return {"name": "code", "in": "path", "required": True, "description": description, "schema": {"type": "string", "example": "ABC123"}}
+
+
+BEARER = [{"bearerAuth": []}]
 
 
 def date_query(name, description):
@@ -152,6 +162,15 @@ SCHEMAS = {
         },
         "required": ["email", "password"],
     },
+    "LoginResponse": {
+        "type": "object",
+        "properties": {
+            "access_token": {"type": "string", "description": "Send it as `Authorization: Bearer <access_token>`"},
+            "token_type": {"type": "string", "example": "Bearer"},
+            "expires_in": {"type": "integer", "description": "Seconds until the token expires", "example": 3600},
+            "user": ref("User"),
+        },
+    },
     "UserResponse": {
         "type": "object",
         "properties": {"message": {"type": "string"}, "user": ref("User")},
@@ -210,18 +229,20 @@ PATHS = {
     "/auth/login": {
         "post": {
             "tags": ["Auth"],
-            "summary": "Log in and start a session",
-            "description": "Sets a session cookie that the other endpoints use. "
-            "Demo accounts: `nearchos@example.com` / `user1234` and `admin@example.com` / `admin1234`.",
+            "summary": "Log in and get an access token",
+            "description": "Returns a bearer token that is valid for an hour. "
+            "In Swagger UI, copy `access_token`, click **Authorize** and paste it. "
+            "Demo user: `nearchos@example.com` / `user1234`.",
             "requestBody": body(ref("Login")),
-            "responses": {**ok("Logged in", ref("UserResponse")), **errors("400", "401")},
+            "responses": {**ok("Logged in", ref("LoginResponse")), **errors("400", "401")},
         }
     },
     "/auth/logout": {
         "post": {
             "tags": ["Auth"],
-            "summary": "End the session",
-            "description": "Requires login.",
+            "summary": "Log out everywhere",
+            "security": BEARER,
+            "description": "Requires login. Invalidates every token issued to you so far, on all devices.",
             "responses": {**ok("Logged out", ref("Message")), **errors("401")},
         }
     },
@@ -229,6 +250,7 @@ PATHS = {
         "get": {
             "tags": ["Auth"],
             "summary": "Your profile",
+            "security": BEARER,
             "description": "Requires login.",
             "responses": {
                 **ok("Your profile", {"type": "object", "properties": {"user": ref("User")}}),
@@ -238,6 +260,7 @@ PATHS = {
         "delete": {
             "tags": ["Auth"],
             "summary": "Delete your account",
+            "security": BEARER,
             "description": "Requires a user login. Your reservations are cancelled and their tickets become available again.",
             "responses": {**ok("Account deleted", status="204"), **errors("401", "403")},
         },
@@ -265,6 +288,7 @@ PATHS = {
         "post": {
             "tags": ["Flights"],
             "summary": "Create a flight",
+            "security": BEARER,
             "description": "Requires an admin login. The flight code is generated.",
             "requestBody": body(ref("NewFlight")),
             "responses": {
@@ -278,7 +302,8 @@ PATHS = {
         "get": {
             "tags": ["Flights"],
             "summary": "Flight details",
-            "description": "Public. Admins also see the passenger list.",
+            "description": "Public. When called with an admin token, the passenger list is included too.",
+            "security": [{}, *BEARER],
             "responses": {
                 **ok("The flight", {"type": "object", "properties": {"flight": ref("FlightDetails")}}),
                 **errors("404"),
@@ -287,6 +312,7 @@ PATHS = {
         "patch": {
             "tags": ["Flights"],
             "summary": "Change ticket prices",
+            "security": BEARER,
             "description": "Requires an admin login. Availability can't be changed directly; bookings manage it.",
             "requestBody": body(ref("PriceUpdate")),
             "responses": {
@@ -297,6 +323,7 @@ PATHS = {
         "delete": {
             "tags": ["Flights"],
             "summary": "Delete a flight",
+            "security": BEARER,
             "description": "Requires an admin login. Refused while the flight has reservations.",
             "responses": {**ok("Flight deleted", status="204"), **errors("401", "403", "404", "409")},
         },
@@ -305,6 +332,7 @@ PATHS = {
         "get": {
             "tags": ["Reservations"],
             "summary": "Your reservations",
+            "security": BEARER,
             "description": "Requires a user login.",
             "responses": {
                 **ok(
@@ -320,6 +348,7 @@ PATHS = {
         "post": {
             "tags": ["Reservations"],
             "summary": "Book a ticket",
+            "security": BEARER,
             "description": "Requires a user login. Fails with 409 if the class is sold out or the flight has departed.",
             "requestBody": body(ref("NewReservation")),
             "responses": {
@@ -333,6 +362,7 @@ PATHS = {
         "get": {
             "tags": ["Reservations"],
             "summary": "One of your reservations",
+            "security": BEARER,
             "description": "Requires a user login.",
             "responses": {
                 **ok("The reservation and its flight", {"type": "object", "properties": {"reservation": ref("Reservation")}}),
@@ -342,6 +372,7 @@ PATHS = {
         "delete": {
             "tags": ["Reservations"],
             "summary": "Cancel a reservation",
+            "security": BEARER,
             "description": "Requires a user login. The ticket becomes available again. Departed flights can't be cancelled.",
             "responses": {**ok("Reservation cancelled", status="204"), **errors("401", "403", "404", "409")},
         },
@@ -352,16 +383,19 @@ SPEC = {
     "openapi": "3.1.0",
     "info": {
         "title": "Digital Airlines API",
-        "version": "2.0.0",
+        "version": "3.0.0",
         "description": "Flight booking REST API built with Flask and MongoDB. "
-        "To try the protected endpoints, call **POST /auth/login** first (its description lists the demo accounts): "
-        "the session cookie is then sent automatically with every request on this page.",
+        "To try the protected endpoints, call **POST /auth/login** with the demo user, "
+        "then click **Authorize** and paste the `access_token` from the response.",
     },
     "tags": [
-        {"name": "Auth", "description": "Accounts and sessions"},
+        {"name": "Auth", "description": "Accounts and access tokens"},
         {"name": "Flights", "description": "Search flights; admins create, reprice and delete them"},
         {"name": "Reservations", "description": "Book and cancel tickets (users only)"},
     ],
     "paths": PATHS,
-    "components": {"schemas": SCHEMAS},
+    "components": {
+        "schemas": SCHEMAS,
+        "securitySchemes": {"bearerAuth": {"type": "http", "scheme": "bearer", "bearerFormat": "JWT"}},
+    },
 }

@@ -1,10 +1,10 @@
 from datetime import date
 
-from flask import Blueprint, jsonify, request, session, url_for
+from flask import Blueprint, jsonify, request, url_for
 from pymongo.collation import Collation
 
 from . import db
-from .access import login_required
+from .access import login_required, optional_user
 from .errors import APIError
 from .validation import TICKET_CLASSES, json_body, parse_date, parse_number, require_text
 
@@ -77,7 +77,8 @@ def get_flight(code):
     response = flight_summary(flight)
 
     # Only admins see who is booked on the flight
-    if session.get("role") == "admin":
+    user = optional_user()
+    if user and user["role"] == "admin":
         response["reservations"] = [
             {
                 "reservation_code": reservation["reservation_code"],

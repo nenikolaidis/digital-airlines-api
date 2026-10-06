@@ -1,6 +1,6 @@
 from datetime import date, datetime, timezone
 
-from flask import Blueprint, jsonify, session, url_for
+from flask import Blueprint, g, jsonify, url_for
 
 from . import db
 from .access import login_required
@@ -30,7 +30,7 @@ def reservation_view(reservation, flight=None):
 
 
 def get_own_reservation_or_404(code):
-    reservation = db.reservations().find_one({"reservation_code": code.upper(), "user_email": session["email"]})
+    reservation = db.reservations().find_one({"reservation_code": code.upper(), "user_email": g.user["email"]})
     if not reservation:
         raise APIError(404, f"Reservation {code} not found.")
     return reservation
@@ -74,7 +74,7 @@ def create_reservation():
 
     reservation = {
         "flight_code": flight["code"],
-        "user_email": session["email"],
+        "user_email": g.user["email"],
         "ticket_class": ticket_class,
         "price": flight["tickets"][ticket_class]["price"],
         "booked_at": datetime.now(timezone.utc),
@@ -93,7 +93,7 @@ def create_reservation():
 @bp.get("")
 @login_required(role="user")
 def list_reservations():
-    reservations = db.reservations().find({"user_email": session["email"]}).sort("booked_at", 1)
+    reservations = db.reservations().find({"user_email": g.user["email"]}).sort("booked_at", 1)
     results = [reservation_view(reservation) for reservation in reservations]
     return jsonify(count=len(results), reservations=results)
 

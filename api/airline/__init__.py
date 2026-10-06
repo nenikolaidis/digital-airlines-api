@@ -2,11 +2,13 @@
 
 import os
 import secrets
+from datetime import timedelta
 
 from flask import Flask, jsonify
 from pymongo import MongoClient
 
 from . import auth, docs, errors, flights, reservations
+from .openapi import openapi_path
 from .seed import create_indexes, seed_database
 
 
@@ -15,14 +17,11 @@ def create_app(config=None):
     app.config.update(
         MONGO_URI=os.environ.get("MONGO_URI", "mongodb://localhost:27017"),
         MONGO_DB=os.environ.get("MONGO_DB", "DigitalAirlines"),
-        # Set SECRET_KEY in production so sessions survive restarts
+        # Signs the access tokens; set it in production so tokens survive restarts
         SECRET_KEY=os.environ.get("SECRET_KEY") or secrets.token_hex(32),
+        TOKEN_LIFETIME=timedelta(minutes=int(os.environ.get("TOKEN_LIFETIME_MINUTES", "60"))),
         ADMIN_PASSWORD=os.environ.get("ADMIN_PASSWORD"),
         SEED_DATABASE=True,
-        SESSION_COOKIE_HTTPONLY=True,
-        SESSION_COOKIE_SAMESITE="Lax",
-        # Set to true when served over HTTPS, so the session cookie is never sent over plain HTTP
-        SESSION_COOKIE_SECURE=os.environ.get("SESSION_COOKIE_SECURE", "").lower() == "true",
     )
     if config:
         app.config.update(config)
@@ -42,7 +41,7 @@ def create_app(config=None):
             name="Digital Airlines API",
             docs="/docs",
             endpoints=sorted(
-                f"{method} {rule.rule}"
+                f"{method} {openapi_path(rule.rule)}"
                 for rule in app.url_map.iter_rules()
                 if rule.endpoint != "static"
                 for method in rule.methods - {"HEAD", "OPTIONS"}

@@ -16,7 +16,6 @@ services:
       # Keep the live admin password private; only the demo user account is public
       - key: ADMIN_PASSWORD
         sync: false
+      # Signs the access tokens
       - key: SECRET_KEY
         generateValue: true
-      - key: SESSION_COOKIE_SECURE
-        value: "true"

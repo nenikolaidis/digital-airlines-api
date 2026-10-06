@@ -18,7 +18,15 @@ def days_from_now(days):
 def app():
     # Each test gets its own throwaway database
     db_name = f"airline_test_{uuid.uuid4().hex[:12]}"
-    app = create_app({"TESTING": True, "MONGO_URI": MONGO_URI, "MONGO_DB": db_name, "SECRET_KEY": "test", "ADMIN_PASSWORD": None})
+    app = create_app(
+        {
+            "TESTING": True,
+            "MONGO_URI": MONGO_URI,
+            "MONGO_DB": db_name,
+            "SECRET_KEY": "test-secret-key-that-is-at-least-32-bytes",
+            "ADMIN_PASSWORD": None,
+        }
+    )
     yield app
     MongoClient(MONGO_URI).drop_database(db_name)
 
@@ -29,9 +37,11 @@ def anon(app):
 
 
 def logged_in(app, email, password):
+    """A test client that sends the user's access token with every request."""
     client = app.test_client()
     response = client.post("/auth/login", json={"email": email, "password": password})
     assert response.status_code == 200, response.get_json()
+    client.environ_base["HTTP_AUTHORIZATION"] = "Bearer " + response.get_json()["access_token"]
     return client
 
 

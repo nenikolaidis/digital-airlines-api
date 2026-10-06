@@ -2,6 +2,8 @@
 
 [![CI](https://github.com/nenikolaidis/digital-airlines-api/actions/workflows/ci.yml/badge.svg)](https://github.com/nenikolaidis/digital-airlines-api/actions/workflows/ci.yml)
 
+**Live demo:** <https://digital-airlines-api.onrender.com/docs>. Log in with `nearchos@example.com` / `user1234`. It runs on a free plan, so the first request after a quiet period can take up to a minute.
+
 A JSON REST API for a small airline booking system, built with **Flask** and **MongoDB** and packaged with **Docker Compose**. Anyone can search flights. Registered users can book and cancel tickets, and administrators manage flights and prices.
 
 It started as a university project for the **University of Piraeus** and has since been rebuilt with an app factory and Blueprints, input validation, atomic seat booking, a pytest suite and CI.
@@ -24,7 +26,7 @@ docker compose up --build
 
 The API runs at <http://localhost:5000>.
 
-**Interactive docs:** open <http://localhost:5000/docs> to browse every endpoint in Swagger UI and try it from the browser. Run `POST /auth/login` with a demo account first, and the other requests then use that session. The OpenAPI spec itself is at `/openapi.json`.
+**Interactive docs:** open <http://localhost:5000/docs> to browse every endpoint in Swagger UI and try it from the browser. Run `POST /auth/login` with a demo account, click **Authorize** and paste the `access_token` from the response. The other requests then send it for you. The OpenAPI spec itself is at `/openapi.json`.
 
 ### Demo accounts
 
@@ -32,23 +34,23 @@ On first start, the database is seeded with two accounts and three sample flight
 
 | Role  | Email                  | Password                           |
 |-------|------------------------|------------------------------------|
-| Admin | `admin@example.com`    | `admin1234` (or `$ADMIN_PASSWORD`) |
+| Admin | `admin@example.com`    | `admin1234` locally (or `$ADMIN_PASSWORD`). The live demo uses a private admin password |
 | User  | `nearchos@example.com` | `user1234`                         |
 
 ### Try it with curl
 
-Requests and responses are JSON. Logging in sets a session cookie, which `-c`/`-b` store and send back.
+Requests and responses are JSON. Logging in returns an access token, which you send as an `Authorization: Bearer <token>` header.
 
 ```bash
 # search flights (no login needed)
 curl "http://localhost:5000/flights?from=new%20york&to=london"
 
-# log in as the demo user
-curl -c cookies.txt --json '{"email": "nearchos@example.com", "password": "user1234"}' \
-  http://localhost:5000/auth/login
+# log in as the demo user and keep the token
+TOKEN=$(curl -s --json '{"email": "nearchos@example.com", "password": "user1234"}' \
+  http://localhost:5000/auth/login | python3 -c "import sys, json; print(json.load(sys.stdin)['access_token'])")
 
 # book an economy ticket
-curl -b cookies.txt --json '{
+curl -H "Authorization: Bearer $TOKEN" --json '{
   "flight_code": "ABC123",
   "ticket_class": "economy",
   "passenger": {
@@ -58,7 +60,7 @@ curl -b cookies.txt --json '{
 }' http://localhost:5000/reservations
 
 # list your reservations
-curl -b cookies.txt http://localhost:5000/reservations
+curl -H "Authorization: Bearer $TOKEN" http://localhost:5000/reservations
 ```
 
 (`--json` needs curl 7.82 or newer. With an older curl, use `-H "Content-Type: application/json" -d '...'`.)
@@ -72,8 +74,8 @@ Dates use the format `YYYY-MM-DD`. Emails and airport names are case-insensitive
 | Method | Endpoint         | Access    | Description |
 |--------|------------------|-----------|-------------|
 | POST   | `/auth/register` | public    | Body: `name`, `surname`, `email`, `password` (8+ characters), `date_of_birth`, `country_of_origin`, `passport_number` |
-| POST   | `/auth/login`    | public    | Body: `email`, `password`. Starts a session |
-| POST   | `/auth/logout`   | logged in | Ends the session |
+| POST   | `/auth/login`    | public    | Body: `email`, `password`. Returns an `access_token`, valid for 1 hour |
+| POST   | `/auth/logout`   | logged in | Invalidates all of your tokens |
 | GET    | `/me`            | logged in | Your profile |
 | DELETE | `/me`            | user      | Deletes your account and cancels your reservations |
 
@@ -110,9 +112,9 @@ Each booking gets its own 6-character reservation code and records the price pai
 |------------------|---------------------------|-------------|
 | `MONGO_URI`      | `mongodb://mongodb:27017` | MongoDB connection string |
 | `MONGO_DB`       | `DigitalAirlines`         | Database name |
-| `SECRET_KEY`     | `change-me-in-production` | Flask session signing key |
+| `SECRET_KEY`     | a local development value | Signs the access tokens. Use a random value of 32+ characters in production |
 | `ADMIN_PASSWORD` | `admin1234`               | Password for the seeded admin account, applied on every start |
-| `SESSION_COOKIE_SECURE` | unset              | Set to `true` when served over HTTPS |
+| `TOKEN_LIFETIME_MINUTES` | `60`             | How long an access token stays valid |
 | `PORT`           | `5000`                    | Port gunicorn listens on inside the container |
 
 In Docker, the API runs under gunicorn as a non-root user. MongoDB isn't published to the host, so only the API container can reach it.
@@ -152,7 +154,7 @@ api/
 │   ├── auth.py          # register, login, logout, /me
 │   ├── flights.py       # flight search and admin management
 │   ├── reservations.py  # booking and cancelling
-│   ├── access.py        # @login_required(role=...)
+│   ├── access.py        # access tokens (JWT) and @login_required(role=...)
 │   ├── validation.py    # request parsing and validation helpers
 │   ├── errors.py        # JSON error responses
 │   ├── openapi.py       # OpenAPI spec (a test checks it matches the routes)

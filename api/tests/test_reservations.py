@@ -1,3 +1,5 @@
+from conftest import logged_in
+
 from airline import db
 
 
@@ -78,13 +80,13 @@ def test_users_only_see_their_own_reservations(app, user, anon, passenger):
             "passport_number": "X1",
         },
     )
-    anon.post("/auth/login", json={"email": "other@example.com", "password": "other-pass"})
-    assert anon.get(f"/reservations/{code}").status_code == 404
-    assert anon.delete(f"/reservations/{code}").status_code == 404
-    assert anon.get("/reservations").get_json()["count"] == 0
+    other = logged_in(app, "other@example.com", "other-pass")
+    assert other.get(f"/reservations/{code}").status_code == 404
+    assert other.delete(f"/reservations/{code}").status_code == 404
+    assert other.get("/reservations").get_json()["count"] == 0
     assert user.get(f"/reservations/{code}").status_code == 200
 
 
-def test_reservations_need_a_user_session(anon, admin, passenger):
+def test_reservations_need_a_user_login(anon, admin, passenger):
     assert anon.get("/reservations").status_code == 401
     assert book(admin, passenger).status_code == 403
